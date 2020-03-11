@@ -106,11 +106,13 @@ def load_annotations(data_folder):
             logging.info("Completed {} records".format(ind + 1))
         get_text = lambda x: x if x != None else ""
         for date_ind, d in enumerate([dt.strptime(i, "%m/%d/%y").strftime("%Y-%m-%d") for i in row.index[4:]]):
-            # ID includes admin0_iso3 + admin1_iso3 + admin2_fips + date
+            # ID includes admin0_iso3 + admin1_iso3 + admin2_fips + admin2 + date
             id_text = get_text(attr["admin0_iso3"]) + get_text(attr["admin1_iso3"]) + get_text(attr["admin2_fips"]) + get_text(attr["admin2"]) + d
             hash_id = hashlib.md5(id_text.encode())
             _id = hash_id.hexdigest()
-            attr["date"] = d
-            attr["id_text"] = id_text
-            attr["confirmed"] = row[row.index[4 + date_ind]]
-            yield {"_id": _id, "annotations": copy.deepcopy(attr)}
+            logging.info("{} : {}".format(id_text, _id))
+            item = copy.deepcopy(attr)
+            item["date"] = d
+            item["id_text"] = id_text
+            item["confirmed"] = row[row.index[4 + date_ind]]
+            yield {"_id": _id, "annotations": item}
