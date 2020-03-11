@@ -1,0 +1,31 @@
+{
+  "version": "0.1",
+  "requires" : ["pandas", "fiona", "shapely"],
+  "dumper" : {
+    "data_url" : [
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_0_countries.cpg",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_0_countries.dbf",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_0_countries.prj",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_0_countries.shp",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_0_countries.shx",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_1_states_provinces.cpg",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_1_states_provinces.dbf",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_1_states_provinces.prj",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_1_states_provinces.shp",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_1_states_provinces.shx",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.cpg",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.dbf",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.prj",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.shp",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.shp.ea.iso.xml",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.shp.iso.xml",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/tl_2019_us_county.shx",
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv"
+    ],
+        "uncompress" : false
+    },
+    "uploader" : {
+        "parser" : "parser:load_annotations",
+        "on_duplicates" : "error"
+    }
+}
