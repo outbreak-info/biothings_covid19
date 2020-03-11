@@ -30,7 +30,7 @@ def load_annotations(data_folder):
     data_file_path = os.path.join(data_folder,"time_series_19-covid-Confirmed.csv")
     df = pd.read_csv(data_file_path)
     # Remove cruise ships
-    df = df[~df["Province/State"] != "Grand Princess Cruise Ship"]
+    df = df[df["Province/State"] != "Grand Princess Cruise Ship"]
     admn0_path = os.path.join(data_folder,"ne_10m_admin_0_countries.shp")
     admn0_shp = fiona.open(admn0_path)
     admn0_shp = keep_polygons_with_highest_area(admn0_shp, "ADM0_A3")
