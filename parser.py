@@ -6,6 +6,9 @@ from collections import Counter
 from datetime import datetime as dt
 import hashlib
 
+from biothings import config
+logging = config.logger
+
 def keep_polygons_with_highest_area(admn_shp, unique_key):
     admn_shp = list(admn_shp)
     # Get unique ISO by getting polygon with highest area
@@ -69,37 +72,37 @@ def load_annotations(data_folder):
                 admin2_features = [feat for feat in usa_admn2_shp if check_point_in_polygon(feat["geometry"], row["Lat"], row["Long"])]
                 admin_level = 2
         if admin0_features == None or len(admin0_features) < 1:
-            print("Country not found for indice {} with name {}".format(ind, row["Country/Region"]))
+            logging.warning("Country not found for indice {} with name {}".format(ind, row["Country/Region"]))
             continue
         attr["admin_level"] = admin_level
         if len(admin0_features) > 1:
-            print("Multiple country features found for indice {} with name {}".format(ind, row["Country/Region"]))
+            logging.info("Multiple country features found for indice {} with name {}".format(ind, row["Country/Region"]))
         attr["admin0"] = admin0_features[0]["properties"]["NAME"]
         attr["admin0_iso3"] = admin0_features[0]["properties"]["ADM0_A3"]
         attr["admin0_pop"] = admin0_features[0]["properties"]["POP_EST"]
         geom = shape(admin0_features[0]["geometry"])
         if admin_level > 0:         # For admin_level 1 and 2
             if len(admin1_features) < 1:
-                print("State not found for indice {} with name {}".format(ind, row["State/Province"]))
+                logging.warning("State not found for indice {} with name {}".format(ind, row["State/Province"]))
                 continue
             if len(admin1_features) > 1:
-                print("Multiple country features found for indice {} with name {}".format(ind, row["Country/Region"]))
+                logging.info("Multiple country features found for indice {} with name {}".format(ind, row["Country/Region"]))
             attr["admin1"] = admin1_features[0]["properties"]["name"]
             attr["admin1_iso3"] = admin1_features[0]["properties"]["iso_3166_2"]
             geom = shape(admin1_features[0]["geometry"])
             if admin_level == 2:
                 if len(admin2_features) < 1:
-                    print("County not found for indice {} with name {}".format(ind, row["State/Province"]))
+                    logging.warning("County not found for indice {} with name {}".format(ind, row["State/Province"]))
                     continue
                 if len(admin2_features) > 1:
-                    print("Multiple couty features found for indice {} with name {}".format(ind, row["State/Province"]))
+                    logging.info("Multiple couty features found for indice {} with name {}".format(ind, row["State/Province"]))
                 attr["admin2"] = admin2_features[0]["properties"]["NAME"]
                 attr["admin2_fips"] = admin2_features[0]["properties"]["STATEFP"] + admin2_features[0]["properties"]["COUNTYFP"]
                 geom = shape(admin2_features[0]["geometry"])
         attr["lng"] = geom.centroid.xy[0][0]
         attr["lat"] = geom.centroid.xy[1][0]
         if ind % 20 == 0:
-            print("Completed {} records".format(ind + 1))
+            loggging.info("Completed {} records".format(ind + 1))
         get_id = lambda x: x if x != None else ""
         for d in [dt.strptime(i, "%m/%d/%y").strftime("%Y-%m-%d") for i in row.index[4:]]:
             # ID includes admin0_iso3 + admin1_iso3 + admin2_fips + date
