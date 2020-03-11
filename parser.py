@@ -5,6 +5,7 @@ from shapely.geometry import shape, Point
 from collections import Counter
 from datetime import datetime as dt
 import hashlib
+import copy
 
 from biothings import config
 logging = config.logger
@@ -68,7 +69,7 @@ def load_annotations(data_folder):
         else:
             admin1_features = [feat for feat in admn1_shp if check_point_in_polygon(feat["geometry"], row["Lat"], row["Long"])]
             admin_level = 1
-            if "County" in row["Province/State"]:
+            if "County" in row["Province/State"] or ", " in row["Province/State"]:
                 admin2_features = [feat for feat in usa_admn2_shp if check_point_in_polygon(feat["geometry"], row["Lat"], row["Long"])]
                 admin_level = 2
         if admin0_features == None or len(admin0_features) < 1:
@@ -102,12 +103,14 @@ def load_annotations(data_folder):
         attr["lng"] = geom.centroid.xy[0][0]
         attr["lat"] = geom.centroid.xy[1][0]
         if ind % 20 == 0:
-            loggging.info("Completed {} records".format(ind + 1))
-        get_id = lambda x: x if x != None else ""
-        for d in [dt.strptime(i, "%m/%d/%y").strftime("%Y-%m-%d") for i in row.index[4:]]:
+            logging.info("Completed {} records".format(ind + 1))
+        get_text = lambda x: x if x != None else ""
+        for date_ind, d in enumerate([dt.strptime(i, "%m/%d/%y").strftime("%Y-%m-%d") for i in row.index[4:]]):
             # ID includes admin0_iso3 + admin1_iso3 + admin2_fips + date
-            id_text = get_id(attr["admin0_iso3"]) + get_id(attr["admin1_iso3"]) + get_id(attr["admin2_fips"]) + d
+            id_text = get_text(attr["admin0_iso3"]) + get_text(attr["admin1_iso3"]) + get_text(attr["admin2_fips"]) + get_text(attr["admin2"]) + d
             hash_id = hashlib.md5(id_text.encode())
             _id = hash_id.hexdigest()
             attr["date"] = d
-            yield {"_id": _id, "annotations": attr}
+            attr["id_text"] = id_text
+            attr["confirmed"] = row[row.index[4 + date_ind]]
+            yield {"_id": _id, "annotations": copy.deepcopy(attr)}
