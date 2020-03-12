@@ -65,6 +65,14 @@ def get_closest_polygon(shp, lat, lng):
 
 def load_annotations(data_folder):
     annotations = {}
+    # Read shapefiles
+    admn0_path = os.path.join(data_folder,"ne_10m_admin_0_countries.shp")
+    admn0_shp = fiona.open(admn0_path)
+    admn1_path = os.path.join(data_folder,"ne_10m_admin_1_states_provinces.shp")
+    admn1_shp = fiona.open(admn1_path)
+    admn2_path = os.path.join(data_folder,"tl_2019_us_county.shp")
+    usa_admn2_shp = fiona.open(admn2_path)
+    # Read csv
     confirmed_file_path = os.path.join(data_folder,"time_series_19-covid-Confirmed.csv")
     confirmed = pd.read_csv(confirmed_file_path)
     recovered_file_path = os.path.join(data_folder,"time_series_19-covid-Recovered.csv")
