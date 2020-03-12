@@ -98,7 +98,7 @@ def load_annotations(data_folder):
                 admin2_feature = get_closest_polygon(usa_admn2_shp, row["Lat"], row["Long"])
                 admin_level = 2
         if admin0_feature == None:
-            print("Country not found for indice {} with name {}".format(ind, row["Country/Region"]))
+            logging.warning("Country not found for indice {} with name {}".format(ind, row["Country/Region"]))
             continue
         attr["admin_level"] = admin_level
         attr["admin0"] = admin0_feature["properties"]["NAME"]
@@ -107,14 +107,14 @@ def load_annotations(data_folder):
         geom = admin0_feature["geometry"]
         if admin_level > 0:         # For admin_level 1 and 2
             if admin1_feature == None:
-                print("State not found for indice {} with name {}".format(ind, row["State/Province"]))
+                logging.warning("State not found for indice {} with name {}".format(ind, row["State/Province"]))
                 continue
             attr["admin1"] = admin1_feature["properties"]["name"]
             attr["admin1_iso3"] = admin1_feature["properties"]["iso_3166_2"]
             geom = admin1_feature["geometry"]
             if admin_level == 2:
                 if admin2_feature == None:
-                    print("County not found for indice {} with name {}".format(ind, row["State/Province"]))
+                    logging.warning("County not found for indice {} with name {}".format(ind, row["State/Province"]))
                     continue
                 attr["admin2"] = admin2_feature["properties"]["NAME"]
                 attr["admin2_fips"] = admin2_feature["properties"]["STATEFP"] + admin2_feature["properties"]["COUNTYFP"]
@@ -124,7 +124,7 @@ def load_annotations(data_folder):
         attr["old_lng"] = row["Long"]
         attr["old_name"] = "{}, {}".format(row["Province/State"], row["Country/Region"])
         if ind % 20 == 0:
-            print("Completed {} records".format(ind + 1))
+            logging.info("Completed {} records".format(ind + 1))
         get_text = lambda x: x if x != None else ""
         for date_ind, d in enumerate([dt.strptime(i, "%m/%d/%y").strftime("%Y-%m-%d") for i in row.index[4:]]):
             # ID includes admin0_iso3 + admin1_iso3 + admin2_fips + date
