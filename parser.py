@@ -168,4 +168,5 @@ def load_annotations(data_folder):
                 annt[k] = int(v)
             if v == None:
                 annt[k] = ""
-        yield {"_id": _id, "annotations": annt}
+        annt["_id"] = _id
+        yield annt
