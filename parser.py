@@ -163,4 +163,6 @@ def load_annotations(data_folder):
                 item["deaths"] = deaths.loc[ind, row.index[4 + date_ind]]
                 annotations[_id] = item
     for _id, annt in annotations.items():
+        for i in ["confirmed", "recovered", "deaths"]:
+            annt[i] = int(annt[i])
         yield {"_id": _id, "annotations": annt}
