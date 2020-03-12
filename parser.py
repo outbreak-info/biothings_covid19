@@ -152,15 +152,15 @@ def load_annotations(data_folder):
             _id = hash_id.hexdigest()
             if _id in annotations:
                 annotations[_id]["confirmed"] += row[row.index[4 + date_ind]]
-                annotations[_id]["recovered"] += recovered.ix[ind, row.index[4 + date_ind]]
-                annotations[_id]["deaths"] += deaths.ix[ind, row.index[4 + date_ind]]
+                annotations[_id]["recovered"] += recovered.loc[ind, row.index[4 + date_ind]]
+                annotations[_id]["deaths"] += deaths.loc[ind, row.index[4 + date_ind]]
             else:
                 item = copy.deepcopy(attr)
                 item["date"] = d
                 item["id_text"] = id_text
                 item["confirmed"] = row[row.index[4 + date_ind]]
-                item["recovered"] = recovered.ix[ind, row.index[4 + date_ind]]
-                item["deaths"] = deaths.ix[ind, row.index[4 + date_ind]]
+                item["recovered"] = recovered.loc[ind, row.index[4 + date_ind]]
+                item["deaths"] = deaths.loc[ind, row.index[4 + date_ind]]
                 annotations[_id] = item
     for _id, annt in annotations.items():
         yield {"_id": _id, "annotations": annt}
