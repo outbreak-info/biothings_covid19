@@ -65,6 +65,17 @@ def get_closest_polygon(shp, lat, lng):
 
 def load_annotations(data_folder):
     annotations = {}
+    confirmed_file_path = os.path.join(data_folder,"time_series_19-covid-Confirmed.csv")
+    confirmed = pd.read_csv(confirmed_file_path)
+    recovered_file_path = os.path.join(data_folder,"time_series_19-covid-Recovered.csv")
+    recovered = pd.read_csv(recovered_file_path)
+    deaths_file_path = os.path.join(data_folder,"time_series_19-covid-Deaths.csv")
+    deaths = pd.read_csv(deaths_file_path)
+    # Remove cruises for now
+    confirmed = confirmed[confirmed["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
+    deaths = deaths[deaths["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
+    recovered = recovered[recovered["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
+
     for ind, row in confirmed.iterrows():
         lat = 0
         lng = 0
