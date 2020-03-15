@@ -140,8 +140,8 @@ def get_stats(confirmed_row, dead_row, recovered_row, date_cols):
     to_date = lambda x: dt.strptime(x, "%m/%d/%y").strftime("%Y-%m-%d")
     for row, n in zip([confirmed_row, dead_row, recovered_row], ["confirmed", "dead", "recovered"]):
         attr[n+"_currentToday"] = to_date(row.index[-1])
-        attr[n+"_numIncrease"] = row[-1] - row[-2]
-        attr[n+"_pctIncrease"] = (row[-1] - row[-2])/row[-2] if row[-2] > 0 else 0
+        attr[n+"_currentIncrease"] = row[-1] - row[-2]
+        attr[n+"_currentPctIncrease"] = (row[-1] - row[-2])/row[-2] if row[-2] > 0 else 0
         diff = row[row.diff() > 0]
         first_date = to_date(diff.index[0]) if diff.shape[0] > 0 else ""
         first[n] = first_date
@@ -201,17 +201,25 @@ def load_annotations(data_folder):
     for (cid, conf), (rid, recov), (did, dead) in zip(states_confirmed.iterrows(), states_recovered.iterrows(), states_dead.iterrows()):
         date_cols = states_confirmed.columns[2:-11]
         item = {}
+        prev = {}
         for i in states_confirmed.columns[-11:]:
             item[i] = conf[i]
-        for d in date_cols:
+        for ind, d in enumerate(date_cols):
             ditem = copy.deepcopy(item)
             ditem["confirmed"] = conf[d]
             ditem["recovered"] = recov[d]
             ditem["dead"] = dead[d]
+            if ind >= 1:
+                ditem["confirmed_numIncrease"] = ditem["confirmed"] - prev["confirmed"]
+                ditem["recovered_numIncrease"] = ditem["recovered"] - prev["recovered"]
+                ditem["dead_numIncrease"] = ditem["dead"] - prev["dead"]
             ditem["date"] = dt.strptime(d, "%m/%d/%y").strftime("%Y-%m-%d")
             attr = get_stats(conf, recov, dead, date_cols)
             for k,v in attr.items():
                 ditem[k] = v
+            prev["confirmed"] = ditem["confirmed"]
+            prev["recovered"] = ditem["recovered"]
+            prev["dead"] = ditem["dead"]
             items.append(ditem)
 
     for item in items:
