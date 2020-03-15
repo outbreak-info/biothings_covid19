@@ -66,9 +66,9 @@ def get_closest_polygon(shp, lat, lng):
 def aggregate_countries(orig_df, shp, feats = []):
     df = orig_df.copy()
     countries = []
-    print("Computing country spatial joins")
+    logging.info("Computing country spatial joins")
     df["feats"] = df[["Lat", "Long"]].apply(lambda x: get_closest_polygon(shp, x["Lat"], x["Long"]), axis = 1) if len(feats) == 0 else feats
-    print("Completed  spatial joins")
+    logging.info("Completed  spatial joins")
     df["computed_country"] = df["feats"].apply(lambda i: i["properties"]["ADM0_A3"])
     for n, grp in df.groupby("computed_country"):
         states = grp[~grp["Province/State"].isna()]
@@ -77,11 +77,11 @@ def aggregate_countries(orig_df, shp, feats = []):
         # Lat Long
         grp_lat_lng = grp.iloc[0][grp.columns[2:4]]
         if states.shape[0] > 0 and country.shape[0] > 0:
-            print("{}: State and country level available. Manual check required to sum.".format(n))
+            logging.warning("{}: State and country level available. Manual check required to sum.".format(n))
         if states.shape[0] > 0 and country.shape[0] == 0:
-            print("{}: Only states. Summing all".format(n))
+            logging.info("{}: Only states. Summing all".format(n))
         if states.shape[0] == 0 and country.shape[0] > 0:
-            print("{}: Only country".format(n))
+            logging.info("{}: Only country".format(n))
         grp_sum = grp.sum()[grp.columns[4:-2]]
         grp_lat_lng.append(grp_sum)
         row = grp_lat_lng.append(grp_sum)
@@ -125,7 +125,7 @@ def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
         centroid = get_centroid(geom)
         row["lat"] = centroid[1]
         row["long"] = centroid[0]
-        print("Finished computing for {}".format(n))
+        logging.info("Finished computing for {}".format(n))
         states.append(row)
     states_df = pd.concat(states, axis = 1).transpose()
     return states_df, df_states["feats"].tolist()
