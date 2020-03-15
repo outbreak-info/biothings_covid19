@@ -219,7 +219,7 @@ def load_annotations(data_folder):
     for item in items:
         for k,v in item.items():
             if type(v) == np.int64:
-                item[k] = int(item[v])
+                item[k] = int(v)
             if type(v) == np.float64 or type(v) == np.float:
                 item[k] = float(v)
         item["_id"] = item["location_id"]+"_"+item["date"]
