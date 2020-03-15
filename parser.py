@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime as dt
 import hashlib
 import copy
+import numpy as np
 
 from biothings import config
 logging = config.logger
@@ -216,5 +217,10 @@ def load_annotations(data_folder):
             items.append(ditem)
 
     for item in items:
+        for k,v in item.items():
+            if type(v) == np.int64:
+                item[k] = int(item[v])
+            if type(v) == np.float64 or type(v) == np.float:
+                item[k] = float(v)
         item["_id"] = item["location_id"]+"_"+item["date"]
         yield item
