@@ -114,14 +114,5 @@
   },
   "country_population": {
     "type": "integer"
-  },
-  "confirmed_numIncrease": {
-    "type": "integer"
-  },
-  "recovered_numIncrease": {
-    "type": "integer"
-  },
-  "dead_numIncrease": {
-    "type": "integer"
   }
 }
