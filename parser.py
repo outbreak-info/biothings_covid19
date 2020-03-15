@@ -149,7 +149,7 @@ def get_stats(confirmed_row, dead_row, recovered_row, date_cols):
         attr[n+"_newToday"] = True if row.index[-1] == first_date else False
         attr[n+"_currentCases"] = row[-1]
     if first["confirmed"] != "" and first["dead"] != "":
-        attr["first_dead-first_confirmed"] = (dt.strptime(first["confirmed"], "%Y-%m-%d") - dt.strptime(first["dead"], "%Y-%m-%d")).days
+        attr["first_dead-first_confirmed"] = (dt.strptime(first["dead"], "%Y-%m-%d") - dt.strptime(first["confirmed"], "%Y-%m-%d")).days
     return attr
 
 def load_annotations(data_folder):
