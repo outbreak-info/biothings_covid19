@@ -144,8 +144,8 @@ def aggregate_region_wb(orig_df, shp, feats = []):
         row["admin_level"] = -1  # For WB_REGION
         row["name"] = n
         row["location_id"] = n.lower()
-        for exp in [": ", " & ", "_"]:
-            row["location_id"].replace(exp, "_")
+        for exp in [": ", " & ", " "]:
+            row["location_id"] = row["location_id"].replace(exp, "_")
         regions_wb.append(row)
     regions_wb_df = pd.concat(regions_wb, axis = 1).transpose()
     return regions_wb_df, df["feats"].tolist()
@@ -153,9 +153,11 @@ def aggregate_region_wb(orig_df, shp, feats = []):
 def generate_items(confirmed, recovered, dead, attr_cols, date_cols):
     items = []
     for (cid, conf), (rid, recov), (did, dead) in zip(confirmed.iterrows(), recovered.iterrows(), dead.iterrows()):
+        item = {}
+        prev = {}
         for i in attr_cols:
             item[i] = conf[i]
-        for d in date_cols:
+        for ind, d in enumerate(date_cols):
             ditem = copy.deepcopy(item)
             ditem["confirmed"] = conf[d]
             ditem["recovered"] = recov[d]
@@ -213,9 +215,9 @@ def load_annotations(data_folder):
     deaths_file_path = os.path.join(data_folder,"time_series_19-covid-Deaths.csv")
     deaths = pd.read_csv(deaths_file_path)
     # Remove cruises for now
-    confirmed = confirmed[confirmed["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
-    deaths = deaths[deaths["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
-    recovered = recovered[recovered["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
+    confirmed = confirmed[confirmed["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)][:30]
+    deaths = deaths[deaths["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)][:30]
+    recovered = recovered[recovered["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)][:30]
 
     countries_confirmed, feats = aggregate_countries(confirmed, admn0_shp)
     countries_recovered, feats = aggregate_countries(recovered, admn0_shp, feats)
@@ -231,11 +233,11 @@ def load_annotations(data_folder):
 
     items = []
     countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-9:], countries_confirmed.columns[2:-9])
-    items.append(countries_items)
+    items.extend(countries_items)
     states_items = generate_items(states_confirmed, states_recovered, states_dead, states_confirmed.columns[-11:], states_confirmed.columns[2:-11])
-    items.append(states_items)
+    items.extend(states_items)
     region_wb_items = generate_items(region_wb_confirmed, region_wb_recovered, region_wb_dead, region_wb_confirmed.columns[-3:], region_wb_confirmed.columns[:-3])
-    items.append(region_wb_items)
+    items.extend(region_wb_items)
 
     for item in items:
         for k,v in item.items():
