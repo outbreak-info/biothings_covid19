@@ -215,9 +215,9 @@ def load_annotations(data_folder):
     deaths_file_path = os.path.join(data_folder,"time_series_19-covid-Deaths.csv")
     deaths = pd.read_csv(deaths_file_path)
     # Remove cruises for now
-    confirmed = confirmed[confirmed["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)][:30]
-    deaths = deaths[deaths["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)][:30]
-    recovered = recovered[recovered["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)][:30]
+    confirmed = confirmed[confirmed["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
+    deaths = deaths[deaths["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
+    recovered = recovered[recovered["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
 
     countries_confirmed, feats = aggregate_countries(confirmed, admn0_shp)
     countries_recovered, feats = aggregate_countries(recovered, admn0_shp, feats)
