@@ -131,6 +131,50 @@ def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
     states_df = pd.concat(states, axis = 1).transpose()
     return states_df, df_states["feats"].tolist()
 
+def aggregate_region_wb(orig_df, shp, feats = []):
+    df = orig_df.copy()
+    regions_wb = []
+    print("Computing country spatial joins")
+    df["feats"] = df[["Lat", "Long"]].apply(lambda x: get_closest_polygon(shp, x["Lat"], x["Long"]), axis = 1) if len(feats) == 0 else feats
+    print("Completed  spatial joins")
+    df["computed_region_wb"] = df["feats"].apply(lambda i: i["properties"]["REGION_WB"] if i["properties"]["ADM0_A3"] != "CHN" else i["properties"]["REGION_WB"] + ": China")
+    for n, grp in df.groupby("computed_region_wb"):
+        grp_sum = grp.sum()[grp.columns[4:-2]]
+        row = grp_sum
+        row["admin_level"] = -1  # For WB_REGION
+        row["name"] = n
+        row["location_id"] = n.lower()
+        for exp in [": ", " & ", "_"]:
+            row["location_id"].replace(exp, "_")
+        regions_wb.append(row)
+    regions_wb_df = pd.concat(regions_wb, axis = 1).transpose()
+    return regions_wb_df, df["feats"].tolist()
+
+def generate_items(confirmed, recovered, dead, attr_cols, date_cols):
+    items = []
+    for (cid, conf), (rid, recov), (did, dead) in zip(confirmed.iterrows(), recovered.iterrows(), dead.iterrows()):
+        for i in attr_cols:
+            item[i] = conf[i]
+        for d in date_cols:
+            ditem = copy.deepcopy(item)
+            ditem["confirmed"] = conf[d]
+            ditem["recovered"] = recov[d]
+            ditem["dead"] = dead[d]
+            ditem["date"] = dt.strptime(d, "%m/%d/%y").strftime("%Y-%m-%d")
+            if ind >= 1:
+                ditem["confirmed_numIncrease"] = ditem["confirmed"] - prev["confirmed"]
+                ditem["recovered_numIncrease"] = ditem["recovered"] - prev["recovered"]
+                ditem["dead_numIncrease"] = ditem["dead"] - prev["dead"]
+            ditem["date"] = dt.strptime(d, "%m/%d/%y").strftime("%Y-%m-%d")
+            attr = get_stats(conf, recov, dead, date_cols)
+            for k,v in attr.items():
+                ditem[k] = v
+            prev["confirmed"] = ditem["confirmed"]
+            prev["recovered"] = ditem["recovered"]
+            prev["dead"] = ditem["dead"]
+            items.append(ditem)
+    return items
+
 def get_stats(confirmed_row, dead_row, recovered_row, date_cols):
     confirmed_row = confirmed_row[date_cols]
     recovered_row = recovered_row[date_cols]
@@ -181,46 +225,17 @@ def load_annotations(data_folder):
     states_recovered, feats = aggregate_states(recovered, admn0_shp, admn1_shp, feats)
     states_dead, feats = aggregate_states(deaths, admn0_shp, admn1_shp, feats)
 
-    items = []
-    for (cid, conf), (rid, recov), (did, dead) in zip(countries_confirmed.iterrows(), countries_recovered.iterrows(), countries_dead.iterrows()):
-        date_cols = countries_confirmed.columns[2:-9]
-        item = {}
-        for i in countries_confirmed.columns[-9:]:
-            item[i] = conf[i]
-        for d in date_cols:
-            ditem = copy.deepcopy(item)
-            ditem["confirmed"] = conf[d]
-            ditem["recovered"] = recov[d]
-            ditem["dead"] = dead[d]
-            ditem["date"] = dt.strptime(d, "%m/%d/%y").strftime("%Y-%m-%d")
-            attr = get_stats(conf, recov, dead, date_cols)
-            for k,v in attr.items():
-                ditem[k] = v
-            items.append(ditem)
+    region_wb_confirmed, feats = aggregate_region_wb(confirmed, admn0_shp)
+    region_wb_recovered, feats = aggregate_region_wb(recovered, admn0_shp, feats)
+    region_wb_dead, feats = aggregate_region_wb(deaths, admn0_shp, feats)
 
-    for (cid, conf), (rid, recov), (did, dead) in zip(states_confirmed.iterrows(), states_recovered.iterrows(), states_dead.iterrows()):
-        date_cols = states_confirmed.columns[2:-11]
-        item = {}
-        prev = {}
-        for i in states_confirmed.columns[-11:]:
-            item[i] = conf[i]
-        for ind, d in enumerate(date_cols):
-            ditem = copy.deepcopy(item)
-            ditem["confirmed"] = conf[d]
-            ditem["recovered"] = recov[d]
-            ditem["dead"] = dead[d]
-            if ind >= 1:
-                ditem["confirmed_numIncrease"] = ditem["confirmed"] - prev["confirmed"]
-                ditem["recovered_numIncrease"] = ditem["recovered"] - prev["recovered"]
-                ditem["dead_numIncrease"] = ditem["dead"] - prev["dead"]
-            ditem["date"] = dt.strptime(d, "%m/%d/%y").strftime("%Y-%m-%d")
-            attr = get_stats(conf, recov, dead, date_cols)
-            for k,v in attr.items():
-                ditem[k] = v
-            prev["confirmed"] = ditem["confirmed"]
-            prev["recovered"] = ditem["recovered"]
-            prev["dead"] = ditem["dead"]
-            items.append(ditem)
+    items = []
+    countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-9:], countries_confirmed.columns[2:-9])
+    items.append(countries_items)
+    states_items = generate_items(states_confirmed, states_recovered, states_dead, states_confirmed.columns[-11:], states_confirmed.columns[2:-11])
+    items.append(states_items)
+    region_wb_items = generate_items(region_wb_confirmed, region_wb_recovered, region_wb_dead, region_wb_confirmed.columns[-3:], region_wb_confirmed.columns[:-3])
+    items.append(region_wb_items)
 
     for item in items:
         for k,v in item.items():
