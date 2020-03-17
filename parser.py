@@ -91,6 +91,7 @@ def aggregate_countries(orig_df, shp, feats = []):
         row["admin_level"] = 0
         row["name"] = admin0_feature["properties"]["NAME"]
         row["iso3"] = admin0_feature["properties"]["ADM0_A3"]
+        row["region_wb"] = i["properties"]["REGION_WB"]
         row["location_id"] = n
         row["population"] = admin0_feature["properties"]["POP_EST"]
         geom = admin0_feature["geometry"]
@@ -177,7 +178,7 @@ def generate_items(confirmed, recovered, dead, attr_cols, date_cols):
             items.append(ditem)
     return items
 
-def get_stats(confirmed_row, dead_row, recovered_row, date_cols):
+def get_stats(confirmed_row, recovered_row, dead_row, date_cols):
     confirmed_row = confirmed_row[date_cols]
     recovered_row = recovered_row[date_cols]
     dead_row = dead_row[date_cols]
