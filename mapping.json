@@ -114,5 +114,8 @@
   },
   "country_population": {
     "type": "integer"
+  },
+  "region_wb": {
+    "type": "keyword"
   }
 }
