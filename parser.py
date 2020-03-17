@@ -233,7 +233,7 @@ def load_annotations(data_folder):
     region_wb_dead, feats = aggregate_region_wb(deaths, admn0_shp, feats)
 
     items = []
-    countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-9:], countries_confirmed.columns[2:-9])
+    countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-10:], countries_confirmed.columns[2:-10])
     items.extend(countries_items)
     states_items = generate_items(states_confirmed, states_recovered, states_dead, states_confirmed.columns[-11:], states_confirmed.columns[2:-11])
     items.extend(states_items)
