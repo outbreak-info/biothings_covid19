@@ -277,7 +277,7 @@ def load_annotations(data_folder):
     for item in states_items:
         key = item["date"]+ "_" + item["iso3"]
         if key in us_testing:
-            for k,v in us_testing[key]:
+            for k,v in us_testing[key].items():
                 item["testing_" + k] = v
     items.extend(states_items)
     region_wb_items = generate_items(region_wb_confirmed, region_wb_recovered, region_wb_dead, region_wb_confirmed.columns[-3:], region_wb_confirmed.columns[:-3])
