@@ -117,5 +117,8 @@
   },
   "region_wb": {
     "type": "keyword"
+  },
+  "num_subnational": {
+    "type": "integer"
   }
 }
