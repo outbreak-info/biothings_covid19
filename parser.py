@@ -103,7 +103,7 @@ def aggregate_countries(orig_df, shp, subnational, feats = []):
     countries_df = pd.concat(countries, axis = 1).transpose()
     return countries_df, df["feats"].tolist()
 
-def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
+def aggregate_states(orig_df, admn0_shp, admn1_shp, us_testing, feats = []):
     df = orig_df.copy()
     df_states = df[~df["Province/State"].isna()]
     df_states["feats"] = df_states[["Lat", "Long"]].apply(lambda x: get_closest_polygon(admn1_shp, x["Lat"], x["Long"]), axis = 1) if len(feats) == 0 else feats
@@ -128,6 +128,9 @@ def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
         centroid = get_centroid(geom)
         row["lat"] = centroid[1]
         row["long"] = centroid[0]
+        if row["iso3"] in us_testing and row["country_iso3"] == "USA":
+            for k,v in us_testing[row["iso3"]]:
+                row["testing_"+k] = v
         logging.info("Finished computing for {}".format(n))
         states.append(row)
     states_df = pd.concat(states, axis = 1).transpose()
@@ -200,6 +203,26 @@ def get_stats(confirmed_row, recovered_row, dead_row, date_cols):
         attr["first_dead-first_confirmed"] = (dt.strptime(first["dead"], "%Y-%m-%d") - dt.strptime(first["confirmed"], "%Y-%m-%d")).days
     return attr
 
+def get_us_testing_data(admn1_shp):
+    testing_api_url = "https://covidtracking.com/api/states"
+    us_states = [i for i in admn1_shp if i["properties"]["adm0_a3"] == "USA"]
+    resp = requests.get(testing_api_url)
+    us_testing = {}
+    for feat in us_states:
+        state_test = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
+        if len(state_test) > 0:
+            d = {}
+            for k,v in state_test[0].items():
+                if v == None or k == "state":
+                    continue
+                if k in ["lastUpdateEt", "checkTimeEt"]:
+                    v = dt.strptime(v, "%m/%d %H:%M").strftime("2020-%m-%d %H:%M")
+                d[k] = v
+            us_testing[feat["properties"]["iso_3166_2"]] = d
+        else:
+            print("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
+    return us_testing
+
 def load_annotations(data_folder):
     annotations = {}
     # Read shapefiles
@@ -210,6 +233,8 @@ def load_annotations(data_folder):
     admn2_path = os.path.join(data_folder,"tl_2019_us_county.shp")
     usa_admn2_shp = fiona.open(admn2_path)
 
+    # Get US state testing data
+    us_testing = get_us_testing_data(admn1_shp)
     # Get number of sub nations in admin0
     admn0_subnational = {}
     for admn0_feat in admn0_shp:
@@ -232,9 +257,9 @@ def load_annotations(data_folder):
     countries_recovered, feats = aggregate_countries(recovered, admn0_shp, admn0_subnational, feats)
     countries_dead, feats = aggregate_countries(deaths, admn0_shp, admn0_subnational, feats)
 
-    states_confirmed, feats = aggregate_states(confirmed, admn0_shp, admn1_shp)
-    states_recovered, feats = aggregate_states(recovered, admn0_shp, admn1_shp, feats)
-    states_dead, feats = aggregate_states(deaths, admn0_shp, admn1_shp, feats)
+    states_confirmed, feats = aggregate_states(confirmed, admn0_shp, admn1_shp, us_testing)
+    states_recovered, feats = aggregate_states(recovered, admn0_shp, admn1_shp, us_testing, feats)
+    states_dead, feats = aggregate_states(deaths, admn0_shp, admn1_shp, us_testing, feats)
 
     region_wb_confirmed, feats = aggregate_region_wb(confirmed, admn0_shp)
     region_wb_recovered, feats = aggregate_region_wb(recovered, admn0_shp, feats)
