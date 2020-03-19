@@ -206,22 +206,26 @@ def get_us_testing_data(admn1_shp):
     us_states = [i for i in admn1_shp if i["properties"]["adm0_a3"] == "USA"]
     resp = requests.get(testing_api_url)
     us_testing = {}
+    if resp.status_code != 200:
+        return us_testing
+    testing = resp.json()
     for feat in us_states:
-        state_test = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
-        if len(state_test) > 0:
+        state_tests = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
+        if len(state_tests) > 0:
             d = {}
             current_date = None
-            for k,v in state_test[0].items():
-                if v == None or k == "state":
-                    continue
-                if k in ["lastUpdateEt", "checkTimeEt"]:
-                    v = dt.strptime(v, "%m/%d %H:%M").strftime("2020-%m-%d %H:%M")
-                if k  == "date":
-                    current_date = dt.strptime(a, "%Y%m%d").strpftime("%Y-%m-%d")
-                d[k] = v
-            us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = d
+            for state_test in state_tests:
+                for k,v in state_test.items():
+                    if v == None or k == "state":
+                        continue
+                    if k in ["lastUpdateEt", "checkTimeEt"]:
+                        v = dt.strptime(v, "%m/%d %H:%M").strftime("2020-%m-%d %H:%M")
+                    if k  == "date":
+                        current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
+                    d[k] = v
+                us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = d
         else:
-            print("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
+            logging.warning("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
     return us_testing
 
 def load_annotations(data_folder):
@@ -270,10 +274,10 @@ def load_annotations(data_folder):
     countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-11:], countries_confirmed.columns[2:-11])
     items.extend(countries_items)
     states_items = generate_items(states_confirmed, states_recovered, states_dead, states_confirmed.columns[-11:], states_confirmed.columns[2:-11])
-    for item in state_items():
+    for item in states_items:
         key = item["date"]+ "_" + item["iso3"]
         if key in us_testing:
-            for k,v in us_testing:
+            for k,v in us_testing.items():
                 item["testing_" + k] = v
     items.extend(states_items)
     region_wb_items = generate_items(region_wb_confirmed, region_wb_recovered, region_wb_dead, region_wb_confirmed.columns[-3:], region_wb_confirmed.columns[:-3])
