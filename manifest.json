@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "requires" : ["pandas", "fiona", "shapely"],
+  "requires" : ["pandas", "fiona", "shapely", "requests"],
   "dumper" : {
     "data_url" : [
       "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/ne_10m_admin_0_countries.cpg",
