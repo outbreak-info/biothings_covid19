@@ -7,6 +7,7 @@ from datetime import datetime as dt
 import hashlib
 import copy
 import numpy as np
+import requests
 
 from biothings import config
 logging = config.logger
@@ -103,7 +104,7 @@ def aggregate_countries(orig_df, shp, subnational, feats = []):
     countries_df = pd.concat(countries, axis = 1).transpose()
     return countries_df, df["feats"].tolist()
 
-def aggregate_states(orig_df, admn0_shp, admn1_shp, us_testing, feats = []):
+def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
     df = orig_df.copy()
     df_states = df[~df["Province/State"].isna()]
     df_states["feats"] = df_states[["Lat", "Long"]].apply(lambda x: get_closest_polygon(admn1_shp, x["Lat"], x["Long"]), axis = 1) if len(feats) == 0 else feats
@@ -128,9 +129,6 @@ def aggregate_states(orig_df, admn0_shp, admn1_shp, us_testing, feats = []):
         centroid = get_centroid(geom)
         row["lat"] = centroid[1]
         row["long"] = centroid[0]
-        if row["iso3"] in us_testing and row["country_iso3"] == "USA":
-            for k,v in us_testing[row["iso3"]]:
-                row["testing_"+k] = v
         logging.info("Finished computing for {}".format(n))
         states.append(row)
     states_df = pd.concat(states, axis = 1).transpose()
@@ -204,7 +202,7 @@ def get_stats(confirmed_row, recovered_row, dead_row, date_cols):
     return attr
 
 def get_us_testing_data(admn1_shp):
-    testing_api_url = "https://covidtracking.com/api/states"
+    testing_api_url = "https://covidtracking.com/api/states/daily"
     us_states = [i for i in admn1_shp if i["properties"]["adm0_a3"] == "USA"]
     resp = requests.get(testing_api_url)
     us_testing = {}
@@ -212,13 +210,16 @@ def get_us_testing_data(admn1_shp):
         state_test = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
         if len(state_test) > 0:
             d = {}
+            current_date = None
             for k,v in state_test[0].items():
                 if v == None or k == "state":
                     continue
                 if k in ["lastUpdateEt", "checkTimeEt"]:
                     v = dt.strptime(v, "%m/%d %H:%M").strftime("2020-%m-%d %H:%M")
+                if k  == "date":
+                    current_date = dt.strptime(a, "%Y%m%d").strpftime("%Y-%m-%d")
                 d[k] = v
-            us_testing[feat["properties"]["iso_3166_2"]] = d
+            us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = d
         else:
             print("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
     return us_testing
@@ -257,9 +258,9 @@ def load_annotations(data_folder):
     countries_recovered, feats = aggregate_countries(recovered, admn0_shp, admn0_subnational, feats)
     countries_dead, feats = aggregate_countries(deaths, admn0_shp, admn0_subnational, feats)
 
-    states_confirmed, feats = aggregate_states(confirmed, admn0_shp, admn1_shp, us_testing)
-    states_recovered, feats = aggregate_states(recovered, admn0_shp, admn1_shp, us_testing, feats)
-    states_dead, feats = aggregate_states(deaths, admn0_shp, admn1_shp, us_testing, feats)
+    states_confirmed, feats = aggregate_states(confirmed, admn0_shp, admn1_shp)
+    states_recovered, feats = aggregate_states(recovered, admn0_shp, admn1_shp, feats)
+    states_dead, feats = aggregate_states(deaths, admn0_shp, admn1_shp, feats)
 
     region_wb_confirmed, feats = aggregate_region_wb(confirmed, admn0_shp)
     region_wb_recovered, feats = aggregate_region_wb(recovered, admn0_shp, feats)
@@ -269,6 +270,11 @@ def load_annotations(data_folder):
     countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-11:], countries_confirmed.columns[2:-11])
     items.extend(countries_items)
     states_items = generate_items(states_confirmed, states_recovered, states_dead, states_confirmed.columns[-11:], states_confirmed.columns[2:-11])
+    for item in state_items():
+        key = item["date"]+ "_" + item["iso3"]
+        if key in us_testing:
+            for k,v in us_testing:
+                item["testing_" + k] = v
     items.extend(states_items)
     region_wb_items = generate_items(region_wb_confirmed, region_wb_recovered, region_wb_dead, region_wb_confirmed.columns[-3:], region_wb_confirmed.columns[:-3])
     items.extend(region_wb_items)
