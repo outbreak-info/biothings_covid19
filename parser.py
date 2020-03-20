@@ -270,7 +270,7 @@ def load_annotations(data_folder):
     region_wb_dead, feats = aggregate_region_wb(deaths, admn0_shp, feats)
 
     # Add sub national territories to countries
-    for ind, country in countires_confirmed.iterrows():
+    for ind, country in countries_confirmed.iterrows():
         countries_confirmed.loc[ind, "num_subnational"] = states_confirmed[states_confirmed["country_iso3"] == country["iso3"]].shape[0]
 
     items = []
