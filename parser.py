@@ -107,6 +107,8 @@ def aggregate_countries(orig_df, shp, subnational, feats = []):
 def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
     df = orig_df.copy()
     df_states = df[~df["Province/State"].isna()]
+    # Exclude UNK, FRA and DNK to remove territories
+    excluded_countries = ["UNK", "FRA", "DNK"]
     df_states["feats"] = df_states[["Lat", "Long"]].apply(lambda x: get_closest_polygon(admn1_shp, x["Lat"], x["Long"]), axis = 1) if len(feats) == 0 else feats
     df_states["computed_state"] = df_states["feats"].apply(lambda i: i["properties"]["iso_3166_2"]+ "_" + i["properties"]["adm0_a3"])
     states = []
@@ -114,6 +116,8 @@ def aggregate_states(orig_df, admn0_shp, admn1_shp, feats = []):
         grp_lat_lng = grp.iloc[0][grp.columns[2:4]]
         grp_sum = grp.sum()[grp.columns[4:-2]]
         admin1_feature = grp.iloc[0]["feats"]
+        if admin1_feature["properties"]["adm0_a3"] in excluded_countries:
+            continue
         row = grp_lat_lng.append(grp_sum)
         row["JHU_Lat"] = row["Lat"]
         row["JHU_Long"] = row["Long"]
