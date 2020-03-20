@@ -92,7 +92,7 @@ def aggregate_countries(orig_df, shp, subnational, feats = []):
         row["admin_level"] = 0
         row["name"] = admin0_feature["properties"]["NAME"]
         row["iso3"] = admin0_feature["properties"]["ADM0_A3"]
-        row["region_wb"] = admin0_feature["properties"]["REGION_WB"]
+        row["region_wb"] = admin0_feature["properties"]["REGION_WB"] if admin0_feature["properties"]["ADM0_A3"] != "CHN" else i["properties"]["REGION_WB"] + ": China"
         row["location_id"] = n
         row["population"] = admin0_feature["properties"]["POP_EST"]
         row["num_subnational"] = subnational[row["iso3"]]
@@ -191,11 +191,11 @@ def get_stats(confirmed_row, recovered_row, dead_row, date_cols):
         attr[n+"_currentToday"] = to_date(row.index[-1])
         attr[n+"_currentIncrease"] = row[-1] - row[-2]
         attr[n+"_currentPctIncrease"] = (row[-1] - row[-2])/row[-2] if row[-2] > 0 else 0
-        diff = row[row.diff() > 0]
+        diff = row[row > 0]
         first_date = to_date(diff.index[0]) if diff.shape[0] > 0 else ""
         first[n] = first_date
         attr[n+"_firstDate"] = first_date
-        attr[n+"_newToday"] = True if row.index[-1] == first_date else False
+        attr[n+"_newToday"] = True if to_date(row.index[-1]) == first_date else False
         attr[n+"_currentCases"] = row[-1]
     if first["confirmed"] != "" and first["dead"] != "":
         attr["first_dead-first_confirmed"] = (dt.strptime(first["dead"], "%Y-%m-%d") - dt.strptime(first["confirmed"], "%Y-%m-%d")).days
