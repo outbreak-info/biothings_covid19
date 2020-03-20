@@ -65,7 +65,7 @@ def get_closest_polygon(shp, lat, lng):
             min_dist = dist
     return closest_feat
 
-def aggregate_countries(orig_df, shp, subnational, feats = []):
+def aggregate_countries(orig_df, shp, feats = []):
     df = orig_df.copy()
     countries = []
     logging.info("Computing country spatial joins")
@@ -95,7 +95,6 @@ def aggregate_countries(orig_df, shp, subnational, feats = []):
         row["region_wb"] = admin0_feature["properties"]["REGION_WB"] if admin0_feature["properties"]["ADM0_A3"] != "CHN" else admin0_feature["properties"]["REGION_WB"] + ": China"
         row["location_id"] = n
         row["population"] = admin0_feature["properties"]["POP_EST"]
-        row["num_subnational"] = subnational[row["iso3"]]
         geom = admin0_feature["geometry"]
         centroid = get_centroid(geom)
         row["lat"] = centroid[1]
@@ -245,11 +244,6 @@ def load_annotations(data_folder):
 
     # Get US state testing data
     us_testing = get_us_testing_data(admn1_shp)
-    # Get number of sub nations in admin0
-    admn0_subnational = {}
-    for admn0_feat in admn0_shp:
-        iso3 = admn0_feat["properties"]["ADM0_A3"]
-        admn0_subnational[iso3] = len([i for i in admn1_shp if i["properties"]["adm0_a3"] == iso3])
 
     # Read csv
     confirmed_file_path = os.path.join(data_folder,"time_series_19-covid-Confirmed.csv")
@@ -263,9 +257,9 @@ def load_annotations(data_folder):
     deaths = deaths[deaths["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
     recovered = recovered[recovered["Province/State"].apply(lambda x: "princess" not in x.lower() if not pd.isna(x) else True)]
 
-    countries_confirmed, feats = aggregate_countries(confirmed, admn0_shp, admn0_subnational)
-    countries_recovered, feats = aggregate_countries(recovered, admn0_shp, admn0_subnational, feats)
-    countries_dead, feats = aggregate_countries(deaths, admn0_shp, admn0_subnational, feats)
+    countries_confirmed, feats = aggregate_countries(confirmed, admn0_shp)
+    countries_recovered, feats = aggregate_countries(recovered, admn0_shp, feats)
+    countries_dead, feats = aggregate_countries(deaths, admn0_shp, feats)
 
     states_confirmed, feats = aggregate_states(confirmed, admn0_shp, admn1_shp)
     states_recovered, feats = aggregate_states(recovered, admn0_shp, admn1_shp, feats)
@@ -274,6 +268,10 @@ def load_annotations(data_folder):
     region_wb_confirmed, feats = aggregate_region_wb(confirmed, admn0_shp)
     region_wb_recovered, feats = aggregate_region_wb(recovered, admn0_shp, feats)
     region_wb_dead, feats = aggregate_region_wb(deaths, admn0_shp, feats)
+
+    # Add sub national territories to countries
+    for ind, country in countires_confirmed.iterrows():
+        countries_confirmed.loc[ind, "num_subnational"] = states_confirmed[states_confirmed["country_iso3"] == country["iso3"]].shape[0]
 
     items = []
     countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-11:], countries_confirmed.columns[2:-11])
