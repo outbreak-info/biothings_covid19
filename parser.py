@@ -227,7 +227,7 @@ def get_us_testing_data(admn1_shp):
                     if k  == "date":
                         current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
                     d[k] = v
-                us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = d
+                us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = copy.deepcopy(d)
         else:
             logging.warning("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
     return us_testing
