@@ -91,6 +91,7 @@ def aggregate_countries(orig_df, shp, feats = []):
         row["JHU_Long"] = row["Long"]
         row["admin_level"] = 0
         row["name"] = admin0_feature["properties"]["NAME"]
+        row["country_name"] = admin0_feature["properties"]["NAME"]
         row["iso3"] = admin0_feature["properties"]["ADM0_A3"]
         row["region_wb"] = admin0_feature["properties"]["REGION_WB"] if admin0_feature["properties"]["ADM0_A3"] != "CHN" else admin0_feature["properties"]["REGION_WB"] + ": China"
         row["location_id"] = n
