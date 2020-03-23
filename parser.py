@@ -275,7 +275,7 @@ def load_annotations(data_folder):
         countries_confirmed.loc[ind, "num_subnational"] = states_confirmed[states_confirmed["country_iso3"] == country["iso3"]].shape[0]
 
     items = []
-    countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-11:], countries_confirmed.columns[2:-11])
+    countries_items = generate_items(countries_confirmed, countries_recovered, countries_dead, countries_confirmed.columns[-12:], countries_confirmed.columns[2:-12])
     items.extend(countries_items)
     states_items = generate_items(states_confirmed, states_recovered, states_dead, states_confirmed.columns[-11:], states_confirmed.columns[2:-11])
     for item in states_items:
