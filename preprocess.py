@@ -36,6 +36,11 @@ daily_reports = [read_daily_report(os.path.join(daily_reports_path, i)) for i in
 
 daily_df = pd.concat(daily_reports, ignore_index = True)
 
+# Remove lat, long for cruises
+for w in ["diamond princess", "grand princess", "cruise", "ship"]:
+    daily_df.loc[daily_df["Country_Region"].apply(lambda x: False if pd.isna(x) else w in x.lower()), "Lat"] = np.nan
+    daily_df.loc[daily_df["Province_State"].apply(lambda x: False if pd.isna(x) else w in x.lower()), "Lat"] = np.nan
+
 # Add lat lng from countries already set
 def add_lat_long(daily_df, key):
     mean_lat_long = daily_df[~daily_df["Lat"].isna() & ~daily_df["Long"].isna()].groupby(key).mean()
@@ -54,6 +59,12 @@ def add_lat_long(daily_df, key):
 add_lat_long(daily_df, "Province_State")
 add_lat_long(daily_df, "Country_Region")
 
+# Remove nan lat long : cruises mostly
+unknown = daily_df[daily_df["Lat"].isna()]
+print("Unknown lat longs for {} rows".format(unknown.shape[0]))
+unknown_confirmed = unknown.sort_values("date", ascending = False).groupby("Province_State").head(1)["Confirmed"].sum()
+print("Unaccounted cases due to missing lat long: {}".format(unknown_confirmed))
+print("\n".join(daily_df[daily_df["Lat"].isna()]["Country_Region"].unique()))
 daily_df = daily_df[~daily_df["Lat"].isna()]
 
 #####################
@@ -127,6 +138,8 @@ state_feats = {}
 country_feats = {}
 usa_admn2_feats = {}
 
+print("Computing geo joins ... ")
+
 with multiprocessing.Pool(processes = 8) as pool:
     lat_lng = [i[0] for i in daily_df.groupby(["Lat", "Long"])]
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn1_shp))))
@@ -139,6 +152,10 @@ with multiprocessing.Pool(processes = 8) as pool:
     usa_admn2_feats = dict(zip(lat_lng, feats))
     pool.close()
     pool.join()
+
+print("Completed geo joins.")
+
+print("Populating dataframe ... ")
 
 for ind, row in daily_df.iterrows():
     country_feat = country_feats[(row["Lat"], row["Long"])]
@@ -162,6 +179,8 @@ def get_admin_level(row):
     return 0
 
 daily_df["admin_level"] = daily_df.apply(get_admin_level, axis = 1)
+
+print("Dataframe ready")
 
 country_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
 state_sum = daily_df.groupby(["computed_state_name", "date"]).sum()
