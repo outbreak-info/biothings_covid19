@@ -1,0 +1,156 @@
+def get_mapping(cls):
+    mapping = {
+        "JHU_Lat": {
+            "type": "float"
+        },
+        "JHU_Long": {
+            "type": "float"
+        },
+        "admin_level": {
+            "type": "integer"
+        },
+        "iso3": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "location_id": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "country_iso3": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "country_population": {
+            "type": "integer"
+        },
+        "lat": {
+            "type": "float"
+        },
+        "long": {
+            "type": "float"
+        },
+        "confirmed": {
+            "type": "integer"
+        },
+        "recovered": {
+            "type": "integer"
+        },
+        "dead": {
+            "type": "integer"
+        },
+        "date": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "confirmed_numIncrease": {
+            "type": "integer"
+        },
+        "recovered_numIncrease": {
+            "type": "integer"
+        },
+        "dead_numIncrease": {
+            "type": "integer"
+        },
+        "confirmed_currentToday": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "confirmed_currentIncrease": {
+            "type": "integer"
+        },
+        "confirmed_currentPctIncrease": {
+            "type": "float"
+        },
+        "confirmed_firstDate": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "confirmed_newToday": {
+            "type": "boolean"
+        },
+        "confirmed_currentCases": {
+            "type": "integer"
+        },
+        "dead_currentToday": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "dead_currentIncrease": {
+            "type": "integer"
+        },
+        "dead_currentPctIncrease": {
+            "type": "float"
+        },
+        "dead_firstDate": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "dead_newToday": {
+            "type": "boolean"
+        },
+        "dead_currentCases": {
+            "type": "integer"
+        },
+        "recovered_currentToday": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "recovered_currentIncrease": {
+            "type": "integer"
+        },
+        "recovered_currentPctIncrease": {
+            "type": "float"
+        },
+        "recovered_firstDate": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "recovered_newToday": {
+            "type": "boolean"
+        },
+        "recovered_currentCases": {
+            "type": "integer"
+        },
+        "first_dead-first_confirmed": {
+            "type": "integer"
+        },
+        "testing_date": {
+            "type": "integer"
+        },
+        "testing_positive": {
+            "type": "integer"
+        },
+        "testing_negative": {
+            "type": "integer"
+        },
+        "testing_total": {
+            "type": "integer"
+        },
+        "testing_dateChecked": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "testing_pending": {
+            "type": "integer"
+        },
+        "testing_death": {
+            "type": "integer"
+        },
+        "name": {
+            "type": "keyword"
+        },
+        "country_name": {
+            "type": "keyword"
+        },
+        "region_wb": {
+            "type": "keyword"
+        },
+        "population": {
+            "type": "integer"
+        },
+        "num_subnational": {
+            "type": "float"
+        }
+    }
+    return mapping
