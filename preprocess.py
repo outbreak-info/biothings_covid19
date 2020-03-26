@@ -255,6 +255,8 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
 
+format_id = lambda x: x.replace(" ", "_").replace("&", "_")
+
 # Countries
 # Compute sub_national from latest dates for all countries
 country_sub_national = daily_df.sort_values("date").groupby(["computed_country_iso3"]).apply(lambda x: len(x[x["date"] == x["date"].max()]["computed_state_iso3"].unique())).sort_values()
@@ -270,8 +272,8 @@ for ind, grp in daily_df.sort_values("date").groupby(["computed_country_iso3", "
         "long": grp["Long"].iloc[0],
         "population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
-        "location_id" : grp["computed_country_iso3"].iloc[0],
-        "_id": grp["computed_country_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "location_id" : format_id(grp["computed_country_iso3"].iloc[0]),
+        "_id": format_id(grp["computed_country_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 0,
         "lat": grp["computed_country_lat"].iloc[0],
         "long": grp["computed_country_long"].iloc[0],
@@ -293,8 +295,8 @@ for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
         "long": grp["Long"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
-        "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0],
-        "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "location_id" : format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0]),
+        "_id": format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 1,
         "lat": grp["computed_state_lat"].iloc[0],
         "long": grp["computed_state_long"].iloc[0]
@@ -318,8 +320,8 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
         "long": grp["Long"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
-        "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0],
-        "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "location_id" : format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0]),
+        "_id": format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 2,
         "lat": grp["computed_county_lat"].iloc[0],
         "long": grp["computed_county_long"].iloc[0]
@@ -335,8 +337,8 @@ for ind, grp in daily_df.groupby(["computed_region_wb", "date"]):
         "name": grp["computed_region_wb"].iloc[0],
         "iso3": grp["computed_region_wb"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
-        "location_id" : grp["computed_region_wb"].iloc[0],
-        "_id": grp["computed_region_wb"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "location_id" : format_id(grp["computed_region_wb"].iloc[0]),
+        "_id": format_id(grp["computed_region_wb"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": -1
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
