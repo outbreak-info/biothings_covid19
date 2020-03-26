@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "requires" : [],
+  "requires" : ["numpy"],
   "dumper" : {
     "schedule": "* 12 * * *",
     "data_url" : [

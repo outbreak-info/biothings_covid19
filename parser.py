@@ -1,5 +1,6 @@
 import os
 import json
+import numpy as np
 
 from biothings import config
 logging = config.logger
