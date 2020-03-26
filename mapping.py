@@ -1,4 +1,4 @@
-def get_mapping(cls):
+def get_customized_mapping(cls):
     mapping = {
         "JHU_Lat": {
             "type": "float"
