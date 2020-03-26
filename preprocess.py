@@ -242,7 +242,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         sorted_group_sum = grouped_sum.loc[iso3][key].sort_index()
         item[api_key] = grp[key].sum()
         item[api_key+"_currentCases"] = sorted_group_sum.iloc[-1]
-        item[api_key+"_curentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
+        item[api_key+"_currentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
         if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0:
             item[api_key+"_currentPctIncrease"] = ((sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2])/sorted_group_sum.iloc[-2]) * 100
         item[api_key+"_currentToday"] = sorted_group_sum.index[-1].strftime("%Y-%m-%d")
