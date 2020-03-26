@@ -1,18 +1,22 @@
 import pandas as pd
 import os
 from datetime import datetime as dt
+from datetime import timedelta
 import fiona
 from shapely.geometry import shape, Point, LinearRing
 import multiprocessing
 from itertools import repeat
 import matplotlib.pyplot as plt
 import numpy as np
+import json
 
-global_confirmed_path = "../outbreak_db/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
-global_dead_path = "../outbreak_db/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
-
-global_confirmed= pd.read_csv(global_confirmed_path)
-global_dead= pd.read_csv(global_dead_path)
+# Read shapefiles
+admn0_path = os.path.join("./data","ne_10m_admin_0_countries.shp")
+admn0_shp = fiona.open(admn0_path)
+admn1_path = os.path.join("./data","ne_10m_admin_1_states_provinces.shp")
+admn1_shp = fiona.open(admn1_path)
+admn2_path = os.path.join("./data","tl_2019_us_county.shp")
+usa_admn2_shp = fiona.open(admn2_path)
 
 #######################
 # Parse daily reports #
@@ -35,6 +39,21 @@ def read_daily_report(path):
 daily_reports = [read_daily_report(os.path.join(daily_reports_path, i)) for i in os.listdir(daily_reports_path) if i[-4:] == ".csv"]
 
 daily_df = pd.concat(daily_reports, ignore_index = True)
+
+# Correct wrong lat_lng longs. Check if name matches shapefile nad populate list below.
+wrong_lat_long = ["Belize", "Malaysia"]
+for cntry in wrong_lat_long:
+    # Check if only country_feat has admin1 or admin2.
+    n_admin_lower = daily_df[daily_df["Country_Region"] == cntry][["Province_State"]].dropna().shape[0] + daily_df[daily_df["Country_Region"] == cntry][["Admin2"]].dropna().shape[0]
+    if n_admin_lower > 0:
+        print("{} has admin 1 or 2. Verify if centroid of country is correct lat long!")
+    feat = [i for i in admn0_shp if i["properties"]["NAME"] == cntry][0]
+    centroid = get_centroid(feat["geometry"])
+    daily_df.loc[daily_df["Country_Region"] == cntry, "Long"] = centroid[0]
+    daily_df.loc[daily_df["Country_Region"] == cntry, "Lat"] = centroid[1]
+
+# Remove rows with 0 confirmed, deaths and recoveries
+daily_df = daily_df[daily_df.apply(lambda x: x["Confirmed"] + x["Recovered"] +x["Deaths"], axis = 1) != 0]
 
 # Remove lat, long for cruises
 for w in ["diamond princess", "grand princess", "cruise", "ship"]:
@@ -66,6 +85,23 @@ unknown_confirmed = unknown.sort_values("date", ascending = False).groupby("Prov
 print("Unaccounted cases due to missing lat long: {}".format(unknown_confirmed))
 print("\n".join(daily_df[daily_df["Lat"].isna()]["Country_Region"].unique()))
 daily_df = daily_df[~daily_df["Lat"].isna()]
+
+# Set lat long to the most frequent used values. To deal with cases like French Polynesia
+for i, grp in daily_df[daily_df["Province_State"].isna() & daily_df["Admin2"].isna()].groupby("Country_Region"):
+    daily_df.loc[(daily_df["Country_Region"] == i) & daily_df["Province_State"].isna() & daily_df["Admin2"].isna(), "Lat"] = grp["Lat"].dropna().mode().values[0]
+    daily_df.loc[(daily_df["Country_Region"] == i) & daily_df["Province_State"].isna() & daily_df["Admin2"].isna(), "Long"] = grp["Long"].dropna().mode().values[0]
+
+for i, grp in daily_df[daily_df["Admin2"].isna()].groupby(["Country_Region", "Province_State"]):
+    daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & daily_df["Admin2"].isna(), "Lat"] = grp["Lat"].dropna().mode().values[0]
+    daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & daily_df["Admin2"].isna(), "Long"] = grp["Long"].dropna().mode().values[0]
+
+for i, grp in daily_df.groupby(["Country_Region", "Province_State", "Admin2"]):
+    daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & (daily_df["Admin2"] == i[2]), "Lat"] = grp["Lat"].dropna().mode().values[0]
+    daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & (daily_df["Admin2"] == i[2]), "Long"] = grp["Long"].dropna().mode().values[0]
+
+# Round Lat Long to 4 decimal places
+daily_df["Lat"] = daily_df["Lat"].round(4)
+daily_df["Long"] = daily_df["Long"].round(4)
 
 #####################
 # Compute geo joins #
@@ -125,15 +161,6 @@ def get_closest_polygon(coords, shp):
             min_dist = dist
     return closest_feat
 
-# Read shapefiles
-admn0_path = os.path.join("./data","ne_10m_admin_0_countries.shp")
-admn0_shp = fiona.open(admn0_path)
-admn1_path = os.path.join("./data","ne_10m_admin_1_states_provinces.shp")
-admn1_shp = fiona.open(admn1_path)
-admn2_path = os.path.join("./data","tl_2019_us_county.shp")
-usa_admn2_shp = fiona.open(admn2_path)
-
-
 state_feats = {}
 country_feats = {}
 usa_admn2_feats = {}
@@ -141,13 +168,16 @@ usa_admn2_feats = {}
 print("Computing geo joins ... ")
 
 with multiprocessing.Pool(processes = 8) as pool:
+    # Country
     lat_lng = [i[0] for i in daily_df.groupby(["Lat", "Long"])]
-    feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn1_shp))))
-    state_feats = dict(zip(lat_lng, feats))
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn0_shp))))
     country_feats = dict(zip(lat_lng, feats))
-    # Get US admin2
-    lat_lng = [i[0] for i in daily_df[(daily_df["Country_Region"] == "US") & ~daily_df["Province_State"].isna()].groupby(["Lat", "Long"])]
+    # State
+    lat_lng = [i[0] for i in daily_df[~daily_df["Province_State"].isna()].groupby(["Lat", "Long"])]
+    feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn1_shp))))
+    state_feats = dict(zip(lat_lng, feats))
+    # Get US county
+    lat_lng = [i[0] for i in daily_df[(daily_df["Country_Region"] == "US") & (~daily_df["Admin2"].isna() | (daily_df["Province_State"].str.contains(", ")) | (daily_df["Province_State"].str.lower().str.contains("county")))].groupby(["Lat", "Long"])]
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(usa_admn2_shp))))
     usa_admn2_feats = dict(zip(lat_lng, feats))
     pool.close()
@@ -158,27 +188,36 @@ print("Completed geo joins.")
 print("Populating dataframe ... ")
 
 for ind, row in daily_df.iterrows():
+    county_feat = None
+    state_feat = None
     country_feat = country_feats[(row["Lat"], row["Long"])]
-    state_feat = state_feats[(row["Lat"], row["Long"])]
     daily_df.loc[ind, "computed_country_name"] = country_feat["properties"]["NAME"]
     daily_df.loc[ind, "computed_country_iso3"] = country_feat["properties"]["ADM0_A3"]
+    daily_df.loc[ind, "computed_country_pop"] = country_feat["properties"]["POP_EST"]
+    daily_df.loc[ind, "computed_region_wb"] = country_feat["properties"]["REGION_WB"] if country_feat["properties"]["ADM0_A3"] != "CHN" else country_feat["properties"]["REGION_WB"] + ": China"
+    admin_level = 0
     if not pd.isna(row["Province_State"]):
+        state_feat = state_feats[(row["Lat"], row["Long"])]
         daily_df.loc[ind, "computed_state_name"] = state_feat["properties"]["name"]
         daily_df.loc[ind, "computed_state_iso3"] = state_feat["properties"]["iso_3166_2"]
-    if not pd.isna(row["Admin2"]):
+        admin_level = 1
+    if country_feat["properties"]["ADM0_A3"] == "USA" and (not pd.isna(row["Admin2"]) or (", " in row["Province_State"] or "county" in row["Province_State"].lower())):
         county_feat = usa_admn2_feats[(row["Lat"], row["Long"])]
         daily_df.loc[ind, "computed_county_name"] = county_feat["properties"]["NAME"]
         daily_df.loc[ind, "computed_county_iso3"] = county_feat["properties"]["STATEFP"] + county_feat["properties"]["COUNTYFP"]
-
-# Write admin_level
-def get_admin_level(row):
-    if not pd.isna(row["Admin2"]):
-        return 2
-    elif not pd.isna(row["Province_State"]):
-        return 1
-    return 0
-
-daily_df["admin_level"] = daily_df.apply(get_admin_level, axis = 1)
+        admin_level = 2
+    daily_df.loc[ind, "computed_admin_level"] = admin_level
+    daily_df.loc[ind, "JHU_Lat"] = daily_df.loc[ind, "Lat"]
+    daily_df.loc[ind, "JHU_Long"] = daily_df.loc[ind, "Long"]
+    if admin_level == 0:
+        centroid_feat = country_feat
+    elif admin_level == 1:
+        centroid_feat = state_feat
+    elif admin_level == 2:
+        centroid_feat = county_feat
+    centroid = get_centroid(centroid_feat["geometry"])
+    daily_df.loc[ind, "Long"] = centroid[0]
+    daily_df.loc[ind, "Lat"] = centroid[1]
 
 print("Dataframe ready")
 
@@ -189,4 +228,90 @@ county_sum = daily_df.groupby(["computed_county_name", "date"]).sum()
 # Plot for country
 country_sum.loc["USA"]
 
-# daily_df.to_csv("./data/summed_daily_reports.csv")
+daily_df.to_csv("./data/summed_daily_reports.csv")
+
+############################
+# Generate items and stats #
+############################
+
+
+def compute_stats(item, grp, grouped_sum, iso3, current_date):
+    keys = ["Confirmed", "Recovered", "Deaths"]
+    api_keys = ["confirmed", "recovered", "dead"]
+    for key,api_key in zip(keys, api_keys):
+        sorted_group_sum = grouped_sum.loc[iso3][key].sort_index()
+        item[api_key] = grp[key].sum()
+        item[api_key+"_currentCases"] = sorted_group_sum.iloc[-1]
+        item[api_key+"_curentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
+        item[api_key+"_currentPctIncrease"] = ((sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2])/sorted_group_sum.iloc[-2]) * 100 if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0 else ""
+        item[api_key+"_currentToday"] = sorted_group_sum.index[-1].strftime("%Y-%m-%d")
+        item[api_key+"_firstDate"] = sorted_group_sum[sorted_group_sum > 0].index[0].strftime("%Y-%m-%d") if sorted_group_sum[sorted_group_sum > 0].shape[0] > 0 else ""
+        item[api_key+"_newToday"] = True if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] > 0 else False
+        item[api_key+"_numIncrease"] = sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)] if current_date - timedelta(days = 1) in sorted_group_sum.index else sorted_group_sum[current_date]
+
+# Countries
+items = []
+grouped_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
+for ind, grp in daily_df.groupby(["computed_country_iso3", "date"]):
+    item = {
+        "date": ind[1].strftime("%Y-%m-%d"),
+        "name": grp["computed_country_name"].iloc[0],
+        "country_name": grp["computed_country_name"].iloc[0],
+        "iso3": grp["computed_country_iso3"].iloc[0],
+        "lat": grp["Lat"].iloc[0],
+        "long": grp["Long"].iloc[0],
+        "population": grp["computed_country_pop"].iloc[0],
+        "region_wb": grp["computed_region_wb"].iloc[0],
+        "location_id" : grp["computed_country_iso3"].iloc[0],
+        "_id": grp["computed_country_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "admin_level": 0
+    }
+    compute_stats(item, grp, grouped_sum, ind[0], ind[1])
+    items.append(item)
+
+# States
+grouped_sum = daily_df.groupby(["computed_state_iso3", "date"]).sum()
+for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
+    item = {
+        "date": ind[1].strftime("%Y-%m-%d"),
+        "name": grp["computed_state_name"].iloc[0],
+        "country_name": grp["computed_country_name"].iloc[0],
+        "iso3": grp["computed_state_iso3"].iloc[0],
+        "country_iso3": grp["computed_country_iso3"].iloc[0],
+        "lat": grp["Lat"].iloc[0],
+        "long": grp["Long"].iloc[0],
+        "country_population": grp["computed_country_pop"].iloc[0],
+        "country_region_wb": grp["computed_region_wb"].iloc[0],
+        "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0],
+        "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "admin_level": 1
+    }
+    # Compute case stats
+    compute_stats(item, grp, grouped_sum, ind[0], ind[1])
+    items.append(item)
+
+# Counties
+grouped_sum = daily_df.groupby(["computed_county_iso3", "date"]).sum()
+for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
+    item = {
+        "date": ind[1].strftime("%Y-%m-%d"),
+        "name": grp["computed_county_name"].iloc[0],
+        "iso3": grp["computed_county_iso3"].iloc[0],
+        "state_name": grp["computed_state_name"].iloc[0],
+        "country_name": grp["computed_country_name"].iloc[0],
+        "state_iso3": grp["computed_state_iso3"].iloc[0],
+        "country_iso3": grp["computed_country_iso3"].iloc[0],
+        "lat": grp["Lat"].iloc[0],
+        "long": grp["Long"].iloc[0],
+        "country_population": grp["computed_country_pop"].iloc[0],
+        "country_region_wb": grp["computed_region_wb"].iloc[0],
+        "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0],
+        "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "admin_level": 2
+    }
+    compute_stats(item, grp, grouped_sum, ind[0], ind[1])
+    items.append(item)
+
+with open("./data/biothings_items.json", "w") as fout:
+    json.dump(items, fout)
+    fout.close()
