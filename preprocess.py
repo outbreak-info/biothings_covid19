@@ -111,8 +111,8 @@ daily_df = daily_df[daily_df.apply(lambda x: x["Confirmed"] + x["Recovered"] +x[
 
 # Remove lat, long for cruises
 for w in ["diamond princess", "grand princess", "cruise", "ship"]:
-    daily_df.loc[daily_df["Country_Region"].apply(lambda x: False if pd.isna(x) else w in x.lower()), "Lat"] = np.nan
-    daily_df.loc[daily_df["Province_State"].apply(lambda x: False if pd.isna(x) else w in x.lower()), "Lat"] = np.nan
+    daily_df.loc[daily_df["Country_Region"].str.lower().str.contains(w, na= False), "Lat"] = np.nan
+    daily_df.loc[daily_df["Province_State"].str.lower().str.contains(w, na= False), "Lat"] = np.nan
 
 # Add lat lng from countries already set
 def add_lat_long(daily_df, key, key_null = None):
@@ -184,7 +184,7 @@ with multiprocessing.Pool(processes = 8) as pool:
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn1_shp))))
     state_feats = dict(zip(lat_lng, feats))
     # Get US county
-    lat_lng = [i[0] for i in daily_df[(daily_df["Country_Region"] == "US") & (~daily_df["Admin2"].isna() | (daily_df["Province_State"].str.contains(", ")) | (daily_df["Province_State"].str.lower().str.contains("county")))].groupby(["Lat", "Long"])]
+    lat_lng = [i[0] for i in daily_df[(daily_df["Country_Region"] == "US") & ((~daily_df["Admin2"].isna() & ~daily_df["Admin2"].str.lower().str.contains("unassigned", na=False)) | (~daily_df["Province_State"].str.lower().str.contains("unassigned", na=False) & (daily_df["Province_State"].str.contains(", ")) | (daily_df["Province_State"].str.lower().str.contains("county"))))].groupby(["Lat", "Long"])]
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(usa_admn2_shp))))
     usa_admn2_feats = dict(zip(lat_lng, feats))
     pool.close()
@@ -210,7 +210,7 @@ for ind, row in daily_df.iterrows():
         centroid = get_centroid(state_feat["geometry"])
         daily_df.loc[ind, "computed_state_long"] = centroid[0]
         daily_df.loc[ind, "computed_state_lat"] = centroid[1]
-    if country_feat["properties"]["ADM0_A3"] == "USA" and (not pd.isna(row["Admin2"]) or (", " in row["Province_State"] or "county" in row["Province_State"].lower())):
+    if country_feat["properties"]["ADM0_A3"] == "USA" and ((not pd.isna(row["Admin2"]) and not "unassigned" in row["Admin2"].lower()) or (not "unassigned"in row["Province_State"].lower() and (", " in row["Province_State"] or "county" in row["Province_State"].lower()))):
         county_feat = usa_admn2_feats[(row["Lat"], row["Long"])]
         daily_df.loc[ind, "computed_county_name"] = county_feat["properties"]["NAME"]
         daily_df.loc[ind, "computed_county_iso3"] = county_feat["properties"]["STATEFP"] + county_feat["properties"]["COUNTYFP"]
@@ -256,9 +256,11 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
 
 # Countries
+# Compute sub_national from latest dates for all countries
+country_sub_national = daily_df.sort_values("date").groupby(["computed_country_iso3"]).apply(lambda x: len(x[x["date"] == x["date"].max()]["computed_state_iso3"].unique())).sort_values()
 items = []
 grouped_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
-for ind, grp in daily_df.groupby(["computed_country_iso3", "date"]):
+for ind, grp in daily_df.sort_values("date").groupby(["computed_country_iso3", "date"]):
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_country_name"].iloc[0],
@@ -272,7 +274,8 @@ for ind, grp in daily_df.groupby(["computed_country_iso3", "date"]):
         "_id": grp["computed_country_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
         "admin_level": 0,
         "lat": grp["computed_country_lat"].iloc[0],
-        "long": grp["computed_country_long"].iloc[0]
+        "long": grp["computed_country_long"].iloc[0],
+        "num_subnational": int(country_sub_national[ind[0]])  # For every date number of admin1 regions in country with reported cases.
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
@@ -289,7 +292,7 @@ for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
         "lat": grp["Lat"].iloc[0],
         "long": grp["Long"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
-        "country_wb_region": grp["computed_region_wb"].iloc[0],
+        "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0],
         "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
         "admin_level": 1,
@@ -314,7 +317,7 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
         "lat": grp["Lat"].iloc[0],
         "long": grp["Long"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
-        "country_wb_region": grp["computed_region_wb"].iloc[0],
+        "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0],
         "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
         "admin_level": 2,
@@ -323,6 +326,22 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
+
+# wb_region
+grouped_sum = daily_df.groupby(["computed_region_wb", "date"]).sum()
+for ind, grp in daily_df.groupby(["computed_region_wb", "date"]):
+    item = {
+        "date": ind[1].strftime("%Y-%m-%d"),
+        "name": grp["computed_region_wb"].iloc[0],
+        "iso3": grp["computed_region_wb"].iloc[0],
+        "wb_region": grp["computed_region_wb"].iloc[0],
+        "location_id" : grp["computed_region_wb"].iloc[0],
+        "_id": grp["computed_region_wb"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "admin_level": -1
+    }
+    compute_stats(item, grp, grouped_sum, ind[0], ind[1])
+    items.append(item)
+
 
 print("Wrote {} items to file".format(len(items)))
 with open("./data/biothings_items.json", "w") as fout:
