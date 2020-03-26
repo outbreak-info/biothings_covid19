@@ -2,7 +2,7 @@
   "version": "0.1",
   "requires" : ["numpy"],
   "dumper" : {
-    "schedule": "* 12 * * *",
+    "schedule": "* 17 * * *",
     "data_url" : [
       "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/biothings_items.json"
     ],
@@ -10,6 +10,7 @@
     },
     "uploader" : {
         "parser" : "parser:load_annotations",
-        "on_duplicates" : "error"
+        "on_duplicates" : "error",
+        "mapping" : "mapping:get_mapping"
     }
 }
