@@ -1,156 +1,134 @@
 def get_customized_mapping(cls):
     mapping = {
-        "JHU_Lat": {
+        "confirmed_numIncrease": {
             "type": "float"
         },
-        "JHU_Long": {
+        "dead_currentCases": {
+            "type": "float"
+        },
+        "confirmed_currentPctIncrease": {
             "type": "float"
         },
         "admin_level": {
             "type": "integer"
         },
-        "iso3": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "location_id": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "country_iso3": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "country_population": {
-            "type": "integer"
-        },
-        "lat": {
-            "type": "float"
-        },
-        "long": {
-            "type": "float"
-        },
-        "confirmed": {
-            "type": "integer"
-        },
-        "recovered": {
-            "type": "integer"
-        },
-        "dead": {
-            "type": "integer"
-        },
-        "date": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "confirmed_numIncrease": {
-            "type": "integer"
-        },
-        "recovered_numIncrease": {
-            "type": "integer"
-        },
-        "dead_numIncrease": {
-            "type": "integer"
-        },
-        "confirmed_currentToday": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "confirmed_currentIncrease": {
-            "type": "integer"
-        },
-        "confirmed_currentPctIncrease": {
-            "type": "float"
-        },
-        "confirmed_firstDate": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
         "confirmed_newToday": {
             "type": "boolean"
         },
-        "confirmed_currentCases": {
-            "type": "integer"
-        },
-        "dead_currentToday": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "dead_currentIncrease": {
-            "type": "integer"
-        },
-        "dead_currentPctIncrease": {
-            "type": "float"
-        },
-        "dead_firstDate": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "dead_newToday": {
-            "type": "boolean"
-        },
-        "dead_currentCases": {
-            "type": "integer"
-        },
-        "recovered_currentToday": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
-        "recovered_currentIncrease": {
-            "type": "integer"
-        },
-        "recovered_currentPctIncrease": {
-            "type": "float"
-        },
-        "recovered_firstDate": {
+        "location_id": {
             "normalizer": "keyword_lowercase_normalizer",
             "type": "keyword"
         },
         "recovered_newToday": {
             "type": "boolean"
         },
-        "recovered_currentCases": {
-            "type": "integer"
-        },
         "first_dead-first_confirmed": {
             "type": "integer"
         },
-        "testing_date": {
-            "type": "integer"
+        "recovered_currentPctIncrease": {
+            "type": "float"
         },
-        "testing_positive": {
-            "type": "integer"
-        },
-        "testing_negative": {
-            "type": "integer"
-        },
-        "testing_total": {
-            "type": "integer"
-        },
-        "testing_dateChecked": {
+        "confirmed_firstDate": {
             "normalizer": "keyword_lowercase_normalizer",
             "type": "keyword"
         },
-        "testing_pending": {
-            "type": "integer"
+        "confirmed": {
+            "type": "float"
         },
-        "testing_death": {
-            "type": "integer"
+        "confirmed_currentIncrease": {
+            "type": "float"
+        },
+        "confirmed_currentToday": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "dead_currentIncrease": {
+            "type": "float"
+        },
+        "dead_numIncrease": {
+            "type": "float"
+        },
+        "recovered_currentIncrease": {
+            "type": "float"
+        },
+        "dead_firstDate": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "iso3": {
+            "type": "keyword"
+        },
+        "recovered_currentCases": {
+            "type": "float"
+        },
+        "recovered": {
+            "type": "float"
+        },
+        "recovered_firstDate": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "recovered_currentToday": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "dead": {
+            "type": "float"
+        },
+        "dead_currentPctIncrease": {
+            "type": "float"
+        },
+        "dead_newToday": {
+            "type": "boolean"
+        },
+        "date": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "recovered_numIncrease": {
+            "type": "float"
+        },
+        "dead_currentToday": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "confirmed_currentCases": {
+            "type": "float"
+        },
+        "country_iso3": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "state_iso3": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "long": {
+            "type": "float"
+        },
+        "lat": {
+            "type": "float"
+        },
+        "country_population": {
+            "type": "float"
         },
         "name": {
             "type": "keyword"
         },
-        "country_name": {
-            "type": "keyword"
-        },
-        "region_wb": {
+        "wb_region": {
             "type": "keyword"
         },
         "population": {
-            "type": "integer"
+            "type": "float"
+        },
+        "country_name": {
+            "type": "keyword"
         },
         "num_subnational": {
-            "type": "float"
+            "type": "integer"
+        },
+        "state_name": {
+            "type": "keyword"
         }
     }
     return mapping
