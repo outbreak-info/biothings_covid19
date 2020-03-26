@@ -243,7 +243,8 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key] = grp[key].sum()
         item[api_key+"_currentCases"] = sorted_group_sum.iloc[-1]
         item[api_key+"_curentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
-        item[api_key+"_currentPctIncrease"] = ((sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2])/sorted_group_sum.iloc[-2]) * 100 if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0 else ""
+        if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0:
+            item[api_key+"_currentPctIncrease"] = ((sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2])/sorted_group_sum.iloc[-2]) * 100
         item[api_key+"_currentToday"] = sorted_group_sum.index[-1].strftime("%Y-%m-%d")
         item[api_key+"_firstDate"] = sorted_group_sum[sorted_group_sum > 0].index[0].strftime("%Y-%m-%d") if sorted_group_sum[sorted_group_sum > 0].shape[0] > 0 else ""
         item[api_key+"_newToday"] = True if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] > 0 else False
@@ -306,12 +307,13 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
         "country_population": grp["computed_country_pop"].iloc[0],
         "country_region_wb": grp["computed_region_wb"].iloc[0],
         "location_id" : grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0],
-        "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
+        "_id": grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d"),
         "admin_level": 2
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
 
+print("Wrote {} items to file".format(len(items)))
 with open("./data/biothings_items.json", "w") as fout:
     json.dump(items, fout)
     fout.close()
