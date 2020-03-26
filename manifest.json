@@ -11,6 +11,6 @@
     "uploader" : {
         "parser" : "parser:load_annotations",
         "on_duplicates" : "error",
-        "mapping" : "mapping:get_mapping"
+        "mapping" : "mapping:get_customized_mapping"
     }
 }
