@@ -177,7 +177,7 @@ usa_admn2_feats = {}
 
 print("Computing geo joins ... ")
 
-with multiprocessing.Pool(processes = 8) as pool:
+with multiprocessing.Pool(processes = 40) as pool:
     # Country
     lat_lng = [i[0] for i in daily_df.groupby(["Lat", "Long"])]
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn0_shp))))
@@ -201,7 +201,7 @@ def get_cruise_ship_name(val):  # Supply "Country_Region" + " " + "Province_Stat
     res = re.search("[a-z]+ princess", val.lower())
     if res == None:
         return "Diamond Princess"
-    return " ".join([i.capitalize() for i in res[0].split(" ")])
+    return " ".join([i.capitalize() for i in res.group(0).split(" ")])
 
 cruises_capacity = {
     "Diamond Princess": 3700,
