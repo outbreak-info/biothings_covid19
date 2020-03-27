@@ -218,7 +218,7 @@ for ind, row in daily_df.iterrows():
         daily_df.loc[ind, "computed_country_iso3"] = region_name.lower()
         daily_df.loc[ind, "computed_state_name"] = state_name
         daily_df.loc[ind, "computed_state_iso3"] = state_name.lower().replace(" ","_")
-        daily_df.loc[ind, "computed_region_wb"] = state_name
+        daily_df.loc[ind, "computed_region_wb"] = region_name
         daily_df.loc[ind, "Province_State"] = state_name
         daily_df.loc[ind, "Country_Region"] = region_name
         daily_df.loc[ind, "computed_country_lat"] = 91
@@ -250,7 +250,6 @@ for ind, row in daily_df.iterrows():
         daily_df.loc[ind, "computed_county_lat"] = centroid[1]
     daily_df.loc[ind, "JHU_Lat"] = daily_df.loc[ind, "Lat"]
     daily_df.loc[ind, "JHU_Long"] = daily_df.loc[ind, "Long"]
-
 
 print("Dataframe ready")
 
