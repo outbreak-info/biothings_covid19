@@ -9,6 +9,7 @@ from itertools import repeat
 import matplotlib.pyplot as plt
 import numpy as np
 import json
+import re
 
 # Read shapefiles
 admn0_path = os.path.join("./data","ne_10m_admin_0_countries.shp")
@@ -111,8 +112,10 @@ daily_df = daily_df[daily_df.apply(lambda x: x["Confirmed"] + x["Recovered"] +x[
 
 # Remove lat, long for cruises
 for w in ["diamond princess", "grand princess", "cruise", "ship"]:
-    daily_df.loc[daily_df["Country_Region"].str.lower().str.contains(w, na= False), "Lat"] = np.nan
-    daily_df.loc[daily_df["Province_State"].str.lower().str.contains(w, na= False), "Lat"] = np.nan
+    daily_df.loc[daily_df["Country_Region"].str.lower().str.contains(w, na= False), "Lat"] = 91  # Add +91 for cruises
+    daily_df.loc[daily_df["Country_Region"].str.lower().str.contains(w, na= False), "Long"] = 181
+    daily_df.loc[daily_df["Province_State"].str.lower().str.contains(w, na= False), "Lat"] = 91  # Add +91 for cruises
+    daily_df.loc[daily_df["Province_State"].str.lower().str.contains(w, na= False), "Long"] = 181
 
 # Add lat lng from countries already set
 def add_lat_long(daily_df, key, key_null = None):
@@ -194,7 +197,35 @@ print("Completed geo joins.")
 
 print("Populating dataframe ... ")
 
+def get_cruise_ship_name(val):  # Supply "Country_Region" + " " + "Province_State"
+    res = re.search("[a-z]+ princess", val.lower())
+    if res == None:
+        return "Diamond Princess"
+    return " ".join([i.capitalize() for i in res[0].split(" ")])
+
+cruises_capacity = {
+    "Diamond Princess": 3700,
+    "Grand Princess": 3533
+}
+
 for ind, row in daily_df.iterrows():
+    if row["Lat"] == 91 and row["Long"] == 181:  # Cruises: wb_region: Cruises, admin0: Cruises, admin1: Diamond/Grand/princess
+        region_name = "Cruises"
+        state_name = get_cruise_ship_name(str(row["Country_Region"]) + " " + str(row["Province_State"]))
+        daily_df[ind, "name"] = state_name
+        daily_df.loc[ind, "computed_country_name"] = region_name
+        daily_df.loc[ind, "computed_country_pop"] = cruises_capacity[state_name]
+        daily_df.loc[ind, "computed_country_iso3"] = region_name.lower()
+        daily_df.loc[ind, "computed_state_name"] = state_name
+        daily_df.loc[ind, "computed_state_iso3"] = state_name.lower().replace(" ","_")
+        daily_df.loc[ind, "computed_region_wb"] = state_name
+        daily_df.loc[ind, "Province_State"] = state_name
+        daily_df.loc[ind, "Country_Region"] = region_name
+        daily_df.loc[ind, "computed_country_lat"] = 91
+        daily_df.loc[ind, "computed_country_long"] = 181
+        daily_df.loc[ind, "computed_state_lat"] = 91
+        daily_df.loc[ind, "computed_state_long"] = 181
+        continue
     country_feat = country_feats[(row["Lat"], row["Long"])]
     daily_df.loc[ind, "computed_country_name"] = country_feat["properties"]["NAME"]
     daily_df.loc[ind, "computed_country_iso3"] = country_feat["properties"]["ADM0_A3"]
@@ -212,7 +243,7 @@ for ind, row in daily_df.iterrows():
         daily_df.loc[ind, "computed_state_lat"] = centroid[1]
     if country_feat["properties"]["ADM0_A3"] == "USA" and ((not pd.isna(row["Admin2"]) and not "unassigned" in row["Admin2"].lower()) or (not "unassigned"in row["Province_State"].lower() and (", " in row["Province_State"] or "county" in row["Province_State"].lower()))):
         county_feat = usa_admn2_feats[(row["Lat"], row["Long"])]
-        daily_df.loc[ind, "computed_county_name"] = county_feat["properties"]["NAME"]
+        daily_df.loc[ind, "computed_county_name"] = county_feat["properties"]["NAMELSAD"]
         daily_df.loc[ind, "computed_county_iso3"] = county_feat["properties"]["STATEFP"] + county_feat["properties"]["COUNTYFP"]
         centroid = get_centroid(county_feat["geometry"])
         daily_df.loc[ind, "computed_county_long"] = centroid[0]
