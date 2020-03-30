@@ -253,6 +253,25 @@ for ind, row in daily_df.iterrows():
 
 print("Dataframe ready")
 
+gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
+
+#creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
+new_rows=[]
+for i,row in gdp_data_df.iterrows():
+  year = "2018"
+  while year != "1960":
+    if pd.notnull(row[year]):
+      new_rows.append([row["Country Code"],year,row[year]])
+      break
+    else:
+      year = str(int(year)-1)
+
+gdp_trim_df = pd.DataFrame(new_rows, columns=["computed_country_iso3","year","country_gdp"])
+
+del gdp_data_df
+
+daily_df = pd.merge(daily_df,gdp_trim_df,on="computed_country_iso3")
+
 country_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
 state_sum = daily_df.groupby(["computed_state_name", "date"]).sum()
 county_sum = daily_df.groupby(["computed_county_name", "date"]).sum()
@@ -374,8 +393,8 @@ for ind, grp in daily_df.groupby(["computed_region_wb", "date"]):
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
 
-
 print("Wrote {} items to file".format(len(items)))
 with open("./data/biothings_items.json", "w") as fout:
     json.dump(items, fout)
     fout.close()
+
