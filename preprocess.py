@@ -77,7 +77,7 @@ def get_closest_polygon(coords, shp):
 # Parse daily reports #
 #######################
 
-daily_reports_path = "outbreak_db/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/"
+daily_reports_path = "../outbreak_db/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/"
 
 def read_daily_report(path):
     df = pd.read_csv(path)
