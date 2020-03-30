@@ -177,7 +177,7 @@ usa_admn2_feats = {}
 
 print("Computing geo joins ... ")
 
-with multiprocessing.Pool(processes = 40) as pool:
+with multiprocessing.Pool(processes = 4) as pool:
     # Country
     lat_lng = [i[0] for i in daily_df.groupby(["Lat", "Long"])]
     feats = pool.starmap(get_closest_polygon, zip(lat_lng, repeat(list(admn0_shp))))
@@ -212,7 +212,7 @@ for ind, row in daily_df.iterrows():
     if row["Lat"] == 91 and row["Long"] == 181:  # Cruises: wb_region: Cruises, admin0: Cruises, admin1: Diamond/Grand/princess
         region_name = "Cruises"
         state_name = get_cruise_ship_name(str(row["Country_Region"]) + " " + str(row["Province_State"]))
-        daily_df[ind, "name"] = state_name
+        daily_df.loc[ind, "name"] = state_name
         daily_df.loc[ind, "computed_country_name"] = region_name
         daily_df.loc[ind, "computed_country_pop"] = cruises_capacity[state_name]
         daily_df.loc[ind, "computed_country_iso3"] = region_name.lower()
@@ -255,10 +255,10 @@ print("Dataframe ready")
 
 gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
 
-#creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
+#Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
 new_rows=[]
 for i,row in gdp_data_df.iterrows():
-  year = "2018"
+  year = "2018"  #From which year does the gdp_per_capita check begin
   while year != "1960":
     if pd.notnull(row[year]):
       new_rows.append([row["Country Code"],year,row[year]])
@@ -326,7 +326,9 @@ for ind, grp in daily_df.sort_values("date").groupby(["computed_country_iso3", "
         "admin_level": 0,
         "lat": grp["computed_country_lat"].iloc[0],
         "long": grp["computed_country_long"].iloc[0],
-        "num_subnational": int(country_sub_national[ind[0]])  # For every date number of admin1 regions in country with reported cases.
+        "num_subnational": int(country_sub_national[ind[0]]),
+        "gdp_last_updated":grp["year"].iloc[0],
+        "gdp_per_capita":grp["country_gdp"].iloc[0]  # For every date number of admin1 regions in country with reported cases.
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
@@ -348,7 +350,9 @@ for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
         "_id": format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 1,
         "lat": grp["computed_state_lat"].iloc[0],
-        "long": grp["computed_state_long"].iloc[0]
+        "long": grp["computed_state_long"].iloc[0],
+        "gdp_last_updated":grp["year"].iloc[0],
+        "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
     # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
@@ -373,7 +377,9 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
         "_id": format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 2,
         "lat": grp["computed_county_lat"].iloc[0],
-        "long": grp["computed_county_long"].iloc[0]
+        "long": grp["computed_county_long"].iloc[0],
+        "gdp_last_updated":grp["year"].iloc[0],
+        "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
@@ -397,4 +403,3 @@ print("Wrote {} items to file".format(len(items)))
 with open("./data/biothings_items.json", "w") as fout:
     json.dump(items, fout)
     fout.close()
-
