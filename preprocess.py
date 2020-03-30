@@ -258,7 +258,7 @@ gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_
 #Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
 new_rows=[]
 for i,row in gdp_data_df.iterrows():
-  year = "2018"
+  year = "2018"  #From which year does the gdp_per_capita check begin
   while year != "1960":
     if pd.notnull(row[year]):
       new_rows.append([row["Country Code"],year,row[year]])
@@ -326,7 +326,9 @@ for ind, grp in daily_df.sort_values("date").groupby(["computed_country_iso3", "
         "admin_level": 0,
         "lat": grp["computed_country_lat"].iloc[0],
         "long": grp["computed_country_long"].iloc[0],
-        "num_subnational": int(country_sub_national[ind[0]])  # For every date number of admin1 regions in country with reported cases.
+        "num_subnational": int(country_sub_national[ind[0]]),
+        "gdp_last_updated":grp["year"].iloc[0],
+        "gdp_per_capita":grp["country_gdp"].iloc[0]  # For every date number of admin1 regions in country with reported cases.
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
@@ -348,7 +350,9 @@ for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
         "_id": format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 1,
         "lat": grp["computed_state_lat"].iloc[0],
-        "long": grp["computed_state_long"].iloc[0]
+        "long": grp["computed_state_long"].iloc[0],
+        "gdp_last_updated":grp["year"].iloc[0],
+        "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
     # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
@@ -373,7 +377,9 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
         "_id": format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 2,
         "lat": grp["computed_county_lat"].iloc[0],
-        "long": grp["computed_county_long"].iloc[0]
+        "long": grp["computed_county_long"].iloc[0],
+        "gdp_last_updated":grp["year"].iloc[0],
+        "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     items.append(item)
@@ -397,4 +403,3 @@ print("Wrote {} items to file".format(len(items)))
 with open("./data/biothings_items.json", "w") as fout:
     json.dump(items, fout)
     fout.close()
-
