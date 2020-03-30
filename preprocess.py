@@ -212,7 +212,7 @@ for ind, row in daily_df.iterrows():
     if row["Lat"] == 91 and row["Long"] == 181:  # Cruises: wb_region: Cruises, admin0: Cruises, admin1: Diamond/Grand/princess
         region_name = "Cruises"
         state_name = get_cruise_ship_name(str(row["Country_Region"]) + " " + str(row["Province_State"]))
-        daily_df[ind, "name"] = state_name
+        daily_df.loc[ind, "name"] = state_name
         daily_df.loc[ind, "computed_country_name"] = region_name
         daily_df.loc[ind, "computed_country_pop"] = cruises_capacity[state_name]
         daily_df.loc[ind, "computed_country_iso3"] = region_name.lower()
@@ -255,7 +255,7 @@ print("Dataframe ready")
 
 gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
 
-#creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
+#Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
 new_rows=[]
 for i,row in gdp_data_df.iterrows():
   year = "2018"
