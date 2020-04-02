@@ -301,24 +301,6 @@ with multiprocessing.Pool(processes = nprocess) as pool:
 
 metro_feats = dict(zip(metro_list, metro_feats))
 
-# Add GDP data
-gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
-
-#Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
-new_rows=[]
-for i,row in gdp_data_df.iterrows():
-  year = "2018"  #From which year does the gdp_per_capita check begin
-  while year != "1960":
-    if pd.notnull(row[year]):
-      new_rows.append([row["Country Code"],year,row[year]])
-      break
-    else:
-      year = str(int(year)-1)
-
-gdp_trim_df = pd.DataFrame(new_rows, columns=["computed_country_iso3","gdp_update_year","country_gdp"])
-
-daily_df = pd.merge(daily_df,gdp_trim_df,on="computed_country_iso3")
-
 # Add testing data
 def get_us_testing_data(admn1_shp):
     testing_api_url = "https://covidtracking.com/api/states/daily"
@@ -474,6 +456,25 @@ for ind, row in daily_df.iterrows():
                         daily_df.loc[ind, "computed_metro_lat"], daily_df.loc[ind, "computed_metro_long"] = get_centroid(metro_feat["geometry"])
     daily_df.loc[ind, "JHU_Lat"] = row["Lat"]
     daily_df.loc[ind, "JHU_Long"] = row["Long"]
+
+# Add GDP data
+gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
+
+#Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
+new_rows=[]
+for i,row in gdp_data_df.iterrows():
+  year = "2018"  #From which year does the gdp_per_capita check begin
+  while year != "1960":
+    if pd.notnull(row[year]):
+      new_rows.append([row["Country Code"],year,row[year]])
+      break
+    else:
+      year = str(int(year)-1)
+
+gdp_trim_df = pd.DataFrame(new_rows, columns=["computed_country_iso3","gdp_update_year","country_gdp"])
+
+daily_df = pd.merge(daily_df,gdp_trim_df,on="computed_country_iso3")
+
 
 print("Dataframe ready")
 
