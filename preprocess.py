@@ -372,7 +372,7 @@ usa_country_feat = [i for i in admn0_shp if i["properties"]["ADM0_A3"]=="USA"][0
 
 for ind, row in daily_df.iterrows():
     if ind % 5000 == 0:
-        print("Completed {:2.f}% ...".format((ind/daily_df.shape[0]) * 100))
+        print("Completed {:.2f}% ...".format((ind/daily_df.shape[0]) * 100))
     if row["Lat"] == 91 and row["Long"] == 181:  # Cruises: wb_region: Cruises, admin0: Cruises, admin1: Diamond/Grand/princess
         region_name = "Cruises"
         state_name = get_cruise_ship_name(str(row["Country_Region"]) + " " + str(row["Province_State"]))
