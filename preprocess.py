@@ -12,17 +12,37 @@ import json
 import re
 import requests
 import copy
+import configparser
 
-nprocess = 8
+# Get paths
+config = configparser.ConfigParser()
+config.read("config.ini")
+# Shapefiles
+admn0_path = config["shapefiles"]["admn0_path"]
+admn1_path = config["shapefiles"]["admn1_path"]
+admn2_path = config["shapefiles"]["admn2_path"]
+usa_metro_path = config["shapefiles"]["usa_metro_path"]
+
+# Data
+census_regions_path = config["data"]["census_regions_path"]
+gdp_path = config["data"]["gdp_path"]
+
+# Repos
+daily_reports_path = config["repos"]["daily_reports_path"]
+nyt_county_path = config["repos"]["nyt_county_path"]
+nyt_state_path = config["repos"]["nyt_state_path"]
+
+# Output
+export_df_path = config["output"]["export_df_path"]
+out_json_path = config["output"]["out_json_path"]
+
+# Processes
+nprocess = config["process"]["nprocess"]
 
 # Read shapefiles
-admn0_path = os.path.join("./data","ne_10m_admin_0_countries.shp")
 admn0_shp = fiona.open(admn0_path)
-admn1_path = os.path.join("./data","ne_10m_admin_1_states_provinces.shp")
 admn1_shp = fiona.open(admn1_path)
-admn2_path = os.path.join("./data","tl_2019_us_county.shp")
 usa_admn2_shp = fiona.open(admn2_path)
-usa_metro_path = os.path.join("./data", "cb_2018_us_cbsa_500k.shp")
 usa_metro_shp = fiona.open(usa_metro_path)
 
 # Return centroid of polygon or largest polygon in set
@@ -82,8 +102,6 @@ def get_closest_polygon(coords, shp):
 #######################
 # Parse daily reports #
 #######################
-
-daily_reports_path = "../outbreak_db/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/"
 
 def read_daily_report(path):
     df = pd.read_csv(path)
@@ -176,10 +194,10 @@ daily_df["Long"] = daily_df["Long"].round(6)
 # Replace US counts with data from NYT
 state_feats = {}
 usa_admn2_feats = {}
-nyt_county = pd.read_csv("../outbreak_db/nyt-covid-19-data/us-counties.csv", dtype = {
+nyt_county = pd.read_csv(nyt_county_path, dtype = {
     "fips": str
 })
-nyt_state = pd.read_csv("../outbreak_db/nyt-covid-19-data/us-states.csv", dtype = {
+nyt_state = pd.read_csv(nyt_state_path, dtype = {
     "fips": str
 })
 
@@ -275,7 +293,7 @@ daily_df = daily_df[(daily_df["Country_Region"] != "US") | ((daily_df["Lat"] == 
 daily_df = pd.concat([daily_df, nyt_state, nyt_county], ignore_index = True)
 
 # Add metro politan CBSA codes
-metro = pd.read_csv("./data/census_metropolitan_areas.csv", skiprows = 2, dtype = {
+metro = pd.read_csv(census_regions_path, skiprows = 2, dtype = {
     "FIPS State Code": str,
     "FIPS County Code": str,
     "CBSA Code": str
@@ -482,7 +500,7 @@ daily_df.loc[kc_df.index, "computed_metro_lat"] = centroid[1]
 
 # Add GDP data
 print("Adding GDP per capita for countries")
-gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
+gdp_data_df = pd.read_csv(gdp_path,header = 2)
 
 #Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
 new_rows=[]
@@ -503,7 +521,7 @@ daily_df = pd.merge(daily_df,gdp_trim_df,on="computed_country_iso3")
 print("Dataframe ready")
 
 # Export dataframe
-daily_df.to_csv("./data/summed_daily_reports.csv")
+daily_df.to_csv(export_df_path)
 
 ############################
 # Generate items and stats #
@@ -729,7 +747,6 @@ for item in items:
         if type(v) == np.float64 or type(v) == np.float:
             item[k] = float(v)
 
-out_json_path = "./data/biothings_items.json"
 with open(out_json_path, "w") as fout:
     json.dump(items, fout)
     fout.close()
