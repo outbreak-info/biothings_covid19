@@ -485,6 +485,13 @@ daily_df.loc[nyc_df.index, "computed_metro_name"] = metro_feat["properties"]["NA
 centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[nyc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_metro_lat"] = centroid[1]
+# Add state for city_df records
+ny_state_feature = [i for i in adm1_shp if i["properties"]["iso_3166_2"] == "US-NY"][0]
+centroid = get_centroid(ny_state_feature["geometry"])
+daily_df.loc[nyc_df.index, "computed_state_long"] = centroid[0]
+daily_df.loc[nyc_df.index, "computed_state_lat"] = centroid[1]
+daily_df.loc[nyc_df.index, "computed_state_iso3"] = "US-NY"
+daily_df.loc[nyc_df.index, "computed_state_name"] = ny_state_feature["properties"]["name"]
 
 kc_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (daily_df["Admin2"] == "Kansas City")]
 daily_df.loc[kc_df.index, "computed_city_name"] = "Kansas City"
@@ -497,6 +504,13 @@ daily_df.loc[kc_df.index, "computed_metro_name"] = metro_feat["properties"]["NAM
 centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[kc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_metro_lat"] = centroid[1]
+# Add state for city_df records
+mo_state_feature = [i for i in adm1_shp if i["properties"]["iso_3166_2"] == "US-MO"][0]
+centroid = get_centroid(mo_state_feature["geometry"])
+daily_df.loc[kc_df.index, "computed_state_long"] = centroid[0]
+daily_df.loc[kc_df.index, "computed_state_lat"] = centroid[1]
+daily_df.loc[kc_df.index, "computed_state_iso3"] = "US-MO"
+daily_df.loc[kc_df.index, "computed_state_name"] = mo_state_feature["properties"]["name"]
 
 # Add GDP data
 print("Adding GDP per capita for countries")
