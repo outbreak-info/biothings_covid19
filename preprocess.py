@@ -372,95 +372,116 @@ usa_country_feat = [i for i in admn0_shp if i["properties"]["ADM0_A3"]=="USA"][0
 
 daily_df.columns = daily_df.columns.str.replace(" ", "_").str.replace("/", "")
 
-for row in daily_df.itertuples():
-    ind = row.Index
-    if ind % 5000 == 0:
-        print("Completed {:.2f}% ...".format((ind/daily_df.shape[0]) * 100))
-    if row.Lat == 91 and row.Long == 181:  # Cruises: wb_region: Cruises, admin0: Cruises, admin1: Diamond/Grand/princess
-        region_name = "Cruises"
-        state_name = get_cruise_ship_name(str(row.Country_Region) + " " + str(row.Province_State))
-        daily_df.loc[ind, "name"] = state_name
-        daily_df.loc[ind, "computed_country_name"] = region_name
-        daily_df.loc[ind, "computed_country_pop"] = cruises_capacity[state_name]
-        daily_df.loc[ind, "computed_country_iso3"] = region_name.lower()
-        daily_df.loc[ind, "computed_state_name"] = state_name
-        daily_df.loc[ind, "computed_state_iso3"] = state_name.lower().replace(" ","_")
-        daily_df.loc[ind, "computed_region_wb"] = region_name
-        daily_df.loc[ind, "Province_State"] = state_name
-        daily_df.loc[ind, "Country_Region"] = region_name
-        daily_df.loc[ind, "computed_country_lat"] = 91
-        daily_df.loc[ind, "computed_country_long"] = 181
-        daily_df.loc[ind, "computed_state_lat"] = 91
-        daily_df.loc[ind, "computed_state_long"] = 181
+# Cruises: wb_region: Cruises, admin0: Cruises, admin1: Diamond/Grand/princess
+print("Populating cruises ... ")
+region_name = "Cruises"
+state_name = daily_df.loc[(daily_df["Lat"] == 91) & (daily_df["Long"] == 181)].apply(lambda x: get_cruise_ship_name(str(x["Country_Region"]) + " " + str(x["Province_State"])), axis = 1)
+sub_df = daily_df.loc[(daily_df["Lat"] == 91) & (daily_df["Long"] == 181)]
+daily_df.loc[sub_df.index, "name"] = state_name
+daily_df.loc[sub_df.index, "computed_country_name"] = region_name
+daily_df.loc[sub_df.index, "computed_country_pop"] = [cruises_capacity[i] for i in state_name]
+daily_df.loc[sub_df.index, "computed_country_iso3"] = region_name.lower()
+daily_df.loc[sub_df.index, "computed_state_name"] = state_name
+daily_df.loc[sub_df.index, "computed_state_iso3"] = state_name.str.lower().str.replace(" ","_")
+daily_df.loc[sub_df.index, "computed_region_wb"] = region_name
+daily_df.loc[sub_df.index, "Province_State"] = state_name
+daily_df.loc[sub_df.index, "Country_Region"] = region_name
+daily_df.loc[sub_df.index, "computed_country_lat"] = 91
+daily_df.loc[sub_df.index, "computed_country_long"] = 181
+daily_df.loc[sub_df.index, "computed_state_lat"] = 91
+daily_df.loc[sub_df.index, "computed_state_long"] = 181
+
+# Country
+print("Populating countries ... ")
+country_attr = {
+    "computed_country_name": "NAME",
+    "computed_country_pop": "POP_EST",
+    "computed_country_iso3": "ADM0_A3"
+}
+for k,v in country_attr.items():
+    daily_df.loc[:, k] = daily_df.apply(lambda x: usa_country_feat["properties"][v] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"][v], axis =  1)
+
+daily_df.loc[:, "computed_region_wb"] = daily_df.apply(lambda x: country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"] + ": China" if x["Country_Region"] == "CHN" else usa_country_feat["properties"]["REGION_WB"] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"], axis = 1)
+
+centroids = daily_df.apply(lambda x: get_centroid(usa_country_feat["geometry"]) if x["Country_Region"] == "USA_NYT" else get_centroid(country_feats[(x["Lat"], x["Long"])]["geometry"]), axis = 1)
+daily_df.loc[:, "computed_country_long"] = [i[0] for i in centroids]
+daily_df.loc[:, "computed_country_lat"] = [i[1] for i in centroids]
+
+# US States set lat. For New York City and Kansas City, lat_lng already set
+print("Populating US States ... ")
+us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
+centroids = us_states["fips"].apply(lambda x: get_centroid(us_state_feats[x[:2]]["geometry"]))
+daily_df.loc[us_states.index, "computed_state_long"] = [i[0] for i in centroids]
+daily_df.loc[us_states.index, "computed_state_lat"] = [i[1] for i in centroids]
+daily_df.loc[us_states.index, "computed_state_name"] = us_states["fips"].apply(lambda x: us_state_feats[x[:2]]["properties"]["name"])
+daily_df.loc[us_states.index, "computed_state_iso3"] = us_states["fips"].apply(lambda x: us_state_feats[x[:2]]["properties"]["iso_3166_2"])
+# Add testing data to states in US
+us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
+check_testing_states = us_states.apply(lambda x: (x["date"].strftime("%Y-%m-%d") + "_" + x["computed_state_iso3"]) in us_testing, axis = 1)
+us_testing_states = us_states.loc[check_testing_states]
+
+# Iterate and add all testing keys
+testing_keys = list(us_testing.values())[0].keys()
+for k in testing_keys:
+    if k in ["date", "hash"]:
         continue
-    country_feat = None
-    if row.Country_Region == "USA_NYT":
-        country_feat = usa_country_feat
-    else:
-        country_feat = country_feats[(row.Lat, row.Long)]
-    daily_df.loc[ind, "computed_country_name"] = country_feat["properties"]["NAME"]
-    daily_df.loc[ind, "computed_country_iso3"] = country_feat["properties"]["ADM0_A3"]
-    daily_df.loc[ind, "computed_country_pop"] = country_feat["properties"]["POP_EST"]
-    daily_df.loc[ind, "computed_region_wb"] = country_feat["properties"]["REGION_WB"] if country_feat["properties"]["ADM0_A3"] != "CHN" else country_feat["properties"]["REGION_WB"] + ": China"
-    centroid = get_centroid(country_feat["geometry"])
-    daily_df.loc[ind, "computed_country_long"] = centroid[0]
-    daily_df.loc[ind, "computed_country_lat"] = centroid[1]
-    if not pd.isna(row.Province_State):
-        if row.Country_Region == "USA_NYT" and row.Admin2 not in ["New York City", "Kansas City"]:
-            state_feat = us_state_feats[row.fips[:2]]
-            daily_df.loc[ind, "computed_state_long"] = row.Lat
-            daily_df.loc[ind, "computed_state_lat"] = row.Long
-        elif row.Admin2 not in ["New York City", "Kansas City"]:
-            state_feat = state_feats[(row.Lat, row.Long)]
-            centroid = get_centroid(state_feat["geometry"])
-            daily_df.loc[ind, "computed_state_long"] = centroid[0]
-            daily_df.loc[ind, "computed_state_lat"] = centroid[1]
-        daily_df.loc[ind, "computed_state_name"] = state_feat["properties"]["name"]
-        daily_df.loc[ind, "computed_state_iso3"] = state_feat["properties"]["iso_3166_2"]
-        # Add testing data to states in US
-        if row.Country_Region == "USA_NYT":
-            testing_key = row.date.strftime("%Y-%m-%d") + "_" + state_feat["properties"]["iso_3166_2"]
-            if testing_key in us_testing:
-                for k,v in us_testing[testing_key].items():
-                    if k not in ["date", "hash"]:
-                        daily_df.loc[ind, "testing_" + k] = v
-        # Add county and cities
-        if row.Country_Region == "USA_NYT" and not row.Admin2.lower() == "unassigned" and not pd.isna(row.Admin2):
-            if (row.Admin2 == "New York City" and row.Province_State == "New York") and pd.isna(row.fips):
-                daily_df.loc[ind, "computed_city_name"] = "New York City"
-                daily_df.loc[ind, "computed_city_iso3"] = "NY_NYC"
-                daily_df.loc[ind, "computed_city_long"] = row.Lat
-                daily_df.loc[ind, "computed_city_lat"] = row.Long
-                metro_feat = metro_feats["35620"]
-                daily_df.loc[ind, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
-                daily_df.loc[ind, "computed_metro_name"] = metro_feat["properties"]["NAME"]
-                daily_df.loc[ind, "computed_metro_lat"], daily_df.loc[ind, "computed_metro_long"] = get_centroid(metro_feat["geometry"])
-            elif (row.Admin2 == "Kansas City" and row.Province_State == "Missouri") and pd.isna(row.fips):
-                daily_df.loc[ind, "computed_city_name"] = "Kansas City"
-                daily_df.loc[ind, "computed_city_iso3"] = "MO_KC"
-                daily_df.loc[ind, "computed_city_long"] = row.Lat
-                daily_df.loc[ind, "computed_city_lat"] = row.Long
-                metro_feat = metro_feats["28140"]
-                daily_df.loc[ind, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
-                daily_df.loc[ind, "computed_metro_name"] = metro_feat["properties"]["NAME"]
-                daily_df.loc[ind, "computed_metro_lat"], daily_df.loc[ind, "computed_metro_long"] = get_centroid(metro_feat["geometry"])
-            else:
-                county_feat = usa_admn2_feats[row.fips]
-                daily_df.loc[ind, "computed_county_name"] = county_feat["properties"]["NAMELSAD"]
-                daily_df.loc[ind, "computed_county_iso3"] = county_feat["properties"]["STATEFP"] + county_feat["properties"]["COUNTYFP"]
-                centroid = get_centroid(county_feat["geometry"])
-                daily_df.loc[ind, "computed_county_long"] = centroid[0]
-                daily_df.loc[ind, "computed_county_lat"] = centroid[1]
-                if not pd.isna(row.CBSA_Code):  
-                    metro_feat = metro_feats[row.CBSA_Code]
-                    if metro_feat != None:# Eliminate micropolitan areas
-                        daily_df.loc[ind, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
-                        daily_df.loc[ind, "computed_metro_name"] = metro_feat["properties"]["NAME"]
-                        daily_df.loc[ind, "computed_metro_lat"], daily_df.loc[ind, "computed_metro_long"] = get_centroid(metro_feat["geometry"])
-    daily_df.loc[ind, "JHU_Lat"] = row.Lat
-    daily_df.loc[ind, "JHU_Long"] = row.Long
+    daily_df.loc[us_testing_states.index, "testing_"+k] = us_testing_states.apply(lambda x: us_testing[(x["date"].strftime("%Y-%m-%d") + "_" + x["computed_state_iso3"])][k] if k in us_testing[(x["date"].strftime("%Y-%m-%d") + "_" + x["computed_state_iso3"])] else np.nan, axis = 1)
+
+# Non US states set lat_lng
+print("Populating Admin1 regions outside US ... ")
+non_us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] != "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
+centroids = non_us_states.apply(lambda x: get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"]), axis = 1)
+daily_df.loc[non_us_states.index, "computed_state_long"] = [i[0] for i in centroids]
+daily_df.loc[non_us_states.index, "computed_state_lat"] = [i[1] for i in centroids]
+daily_df.loc[non_us_states.index, "computed_state_name"] = non_us_states.apply(lambda x: state_feats[(x["Lat"], x["Long"])]["properties"]["name"], axis = 1)
+daily_df.loc[non_us_states.index, "computed_state_iso3"] = non_us_states.apply(lambda x: state_feats[(x["Lat"], x["Long"])]["properties"]["iso_3166_2"], axis = 1)
+
+# Admin2
+print("Populating US counties ... ")
+us_county_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & ~(daily_df["Admin2"] == "Unassigned") & ~(pd.isna(daily_df["Admin2"])) & ~(daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
+daily_df.loc[us_county_df.index, "computed_county_name"] = us_county_df["fips"].apply(lambda x: usa_admn2_feats[x]["properties"]["NAMELSAD"])
+daily_df.loc[us_county_df.index, "computed_county_iso3"] = us_county_df["fips"].apply(lambda x: usa_admn2_feats[x]["properties"]["STATEFP"] + usa_admn2_feats[x]["properties"]["COUNTYFP"])
+centroids = us_county_df["fips"].apply(lambda x: get_centroid(usa_admn2_feats[x]["geometry"]))
+daily_df.loc[us_county_df.index, "computed_county_long"] = [i[0] for i in centroids]
+daily_df.loc[us_county_df.index, "computed_county_lat"] = [i[1] for i in centroids]
+
+# Add metropolitan areas
+print("Populating metropolitan areas ...")
+us_metro_df = us_county_df[~us_county_df["CBSA_Code"].isna()]
+daily_df.loc[us_metro_df.index, "computed_metro_cbsa"] = us_metro_df["CBSA_Code"].apply(lambda x: metro_feats[x]["properties"]["CBSAFP"] if metro_feats[x] != None else None)
+daily_df.loc[us_metro_df.index, "computed_metro_name"] = us_metro_df["CBSA_Code"].apply(lambda x: metro_feats[x]["properties"]["NAME"] if metro_feats[x] != None else None)
+centroids = us_metro_df["CBSA_Code"].apply(lambda x: get_centroid(metro_feats[x]["geometry"]) if metro_feats[x] != None else [None, None])
+daily_df.loc[us_metro_df.index, "computed_metro_long"] = [i[0] for i in centroids]
+daily_df.loc[us_metro_df.index, "computed_metro_lat"] = [i[1] for i in centroids]
+
+# Add admin2 codes for cities: NYC and KC
+print("Populating cities (NYC + KC)")
+nyc_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (daily_df["Admin2"] == "New York City")]
+daily_df.loc[nyc_df.index, "computed_city_name"] = "New York City"
+daily_df.loc[nyc_df.index, "computed_city_iso3"] = "US-NY_NYC"
+daily_df.loc[nyc_df.index, "computed_city_lat"] = nyc_df["Lat"]
+daily_df.loc[nyc_df.index, "computed_city_long"] = nyc_df["Long"]
+metro_feat = metro_feats["35620"]
+daily_df.loc[nyc_df.index, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
+daily_df.loc[nyc_df.index, "computed_metro_name"] = metro_feat["properties"]["NAME"]
+centroid = get_centroid(metro_feat["geometry"])
+daily_df.loc[nyc_df.index, "computed_metro_long"] = centroid[0]
+daily_df.loc[nyc_df.index, "computed_metro_lat"] = centroid[1]
+
+kc_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (daily_df["Admin2"] == "Kansas City")]
+daily_df.loc[kc_df.index, "computed_city_name"] = "Kansas City"
+daily_df.loc[kc_df.index, "computed_city_iso3"] = "US-MO_KC"
+daily_df.loc[kc_df.index, "computed_city_lat"] = kc_df["Lat"]
+daily_df.loc[kc_df.index, "computed_city_long"] = kc_df["Long"]
+metro_feat = metro_feats["28140"]
+daily_df.loc[kc_df.index, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
+daily_df.loc[kc_df.index, "computed_metro_name"] = metro_feat["properties"]["NAME"]
+centroid = get_centroid(metro_feat["geometry"])
+daily_df.loc[kc_df.index, "computed_metro_long"] = centroid[0]
+daily_df.loc[kc_df.index, "computed_metro_lat"] = centroid[1]
 
 # Add GDP data
+print("Adding GDP per capita for countries")
 gdp_data_df = pd.read_csv(os.path.join("./data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_887243.csv"),header = 2)
 
 #Creates a dataframe that has Country_name, country_code, lastest_year_gdp_is_available, country_gdp(wrt to that year)
@@ -509,12 +530,11 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
 
 format_id = lambda x: x.replace(" ", "_").replace("&", "_")
 
-# Countries
-# Compute sub_national from latest dates for all countries
-country_sub_national = daily_df.sort_values("date").groupby(["computed_country_iso3"]).apply(lambda x: len(x[x["date"] == x["date"].max()]["computed_state_iso3"].unique())).sort_values()
 items = []
-grouped_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
-for ind, grp in daily_df.sort_values("date").groupby(["computed_country_iso3", "date"]):
+
+# Countries
+def generate_country_item(ind_grp, grouped_sum, country_sub_national):
+    (ind, grp) = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_country_name"].iloc[0],
@@ -534,11 +554,23 @@ for ind, grp in daily_df.sort_values("date").groupby(["computed_country_iso3", "
         "gdp_per_capita":grp["country_gdp"].iloc[0]  # For every date number of admin1 regions in country with reported cases.
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
-    items.append(item)
+    return item
+
+# Compute sub_national from latest dates for all countries
+print("Generating admin0 items ... ")
+country_sub_national = daily_df.sort_values("date").groupby(["computed_country_iso3"]).apply(lambda x: len(x[x["date"] == x["date"].max()]["computed_state_iso3"].unique())).sort_values()
+grouped_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
+
+with multiprocessing.Pool(processes = nprocess) as pool:
+    country_items = pool.starmap(generate_country_item, zip(daily_df.sort_values("date").groupby(["computed_country_iso3", "date"]), repeat(grouped_sum), repeat(country_sub_national)))
+    pool.close()
+    pool.join()
+    items.extend(country_items)
+    print("Completed generation of {} admin0 items.".format(len(country_items)))
 
 # States
-grouped_sum = daily_df.groupby(["computed_state_iso3", "date"]).sum()
-for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
+def generate_state_item(ind_grp, grouped_sum):
+    ind,grp = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_state_name"].iloc[0],
@@ -557,13 +589,30 @@ for ind, grp in daily_df.groupby(["computed_state_iso3", "date"]):
         "gdp_last_updated":grp["gdp_update_year"].iloc[0],
         "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
-    # Compute case stats
+    if grp["computed_country_iso3"].iloc[0] == "USA":
+        testing_columns = [i for i in daily_df.columns if "testing_" in i]
+        for i in testing_columns:
+            if pd.isna(grp[i].iloc[0]):
+                continue
+            item[i] = grp[i].iloc[0]
+            # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
-    items.append(item)
+    return item
+
+print("Generating admin1 items ... ")
+
+grouped_sum = daily_df.groupby(["computed_state_iso3", "date"]).sum()
+
+with multiprocessing.Pool(processes = nprocess) as pool:
+    state_items = pool.starmap(generate_state_item, zip(daily_df.groupby(["computed_state_iso3", "date"]), repeat(grouped_sum)))
+    pool.close()
+    pool.join()
+    items.extend(state_items)
+    print("Completed generation of {} admin1 items".format(len(state_items)))
 
 # Counties
-grouped_sum = daily_df.groupby(["computed_county_iso3", "date"]).sum()
-for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
+def generate_county_item(ind_grp, grouped_sum):
+    ind,grp = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_county_name"].iloc[0],
@@ -585,11 +634,21 @@ for ind, grp in daily_df.groupby(["computed_county_iso3", "date"]):
         "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
-    items.append(item)
+    return item
+
+print("Generating admin2 items ... ")
+grouped_sum = daily_df.groupby(["computed_county_iso3", "date"]).sum()
+
+with multiprocessing.Pool(processes = nprocess) as pool:
+    county_items = pool.starmap(generate_county_item, zip(daily_df.groupby(["computed_county_iso3", "date"]), repeat(grouped_sum)))
+    pool.close()
+    pool.join()
+    items.extend(county_items)
+    print("Completed generation of {} admin2 items.".format(len(county_items)))
 
 # wb_region
-grouped_sum = daily_df.groupby(["computed_region_wb", "date"]).sum()
-for ind, grp in daily_df.groupby(["computed_region_wb", "date"]):
+def generate_region_item(ind_grp, grouped_sum):
+    ind,grp = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_region_wb"].iloc[0],
@@ -600,9 +659,21 @@ for ind, grp in daily_df.groupby(["computed_region_wb", "date"]):
         "admin_level": -1
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
-    items.append(item)
+    return item
+
+print("Generating region_wb items ... ")
+grouped_sum = daily_df.groupby(["computed_region_wb", "date"]).sum()
+with multiprocessing.Pool(processes = nprocess) as pool:
+    region_items = pool.starmap(generate_region_item, zip(daily_df.groupby(["computed_region_wb", "date"]), repeat(grouped_sum)))
+    pool.close()
+    pool.join()
+    items.extend(region_items)
+    print("Completed generation of {} region_wb items".format(len(region_items)))
 
 # Aggregate cities: KC and NYC
+# Ignore multiprocessing because only 2 cities
+print("Generating city items ... ")
+city_items = []
 grouped_sum = daily_df.groupby(["computed_city_iso3", "date"]).sum()
 for ind, grp in daily_df.groupby(["computed_city_iso3", "date"]):
     item = {
@@ -617,12 +688,15 @@ for ind, grp in daily_df.groupby(["computed_city_iso3", "date"]):
         "country_name": grp["computed_country_name"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
-    items.append(item)
+    city_items.append(item)
+
+items.extend(city_items)
+print("Completed generation of {} city items ... ".format(len(city_items)))
 
 # metropolitan areas
-get_metro_counties = lambda x: metro[metro["CBSA Code"] == x][["County/County Equivalent", "State Name", "fips"]].rename(columns={"County/County Equivalent": "county_name", "State Name": "state_name"}).to_dict("records")
-grouped_sum = daily_df.groupby(["computed_metro_cbsa", "date"]).sum()
-for ind, grp in daily_df.groupby(["computed_metro_cbsa", "date"]):
+def generate_metro_item(ind_grp, grouped_sum, metro):
+    ind,grp = ind_grp
+    get_metro_counties = lambda x: metro[metro["CBSA Code"] == x][["County/County Equivalent", "State Name", "fips"]].rename(columns={"County/County Equivalent": "county_name", "State Name": "state_name"}).to_dict("records")
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_metro_name"].iloc[0],
@@ -637,9 +711,27 @@ for ind, grp in daily_df.groupby(["computed_metro_cbsa", "date"]):
         "wb_region": grp["computed_region_wb"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
-    items.append(item)
+    return item
 
-print("Wrote {} items to file".format(len(items)))
-with open("./data/biothings_items.json", "w") as fout:
+print("Generating metro items ... ")
+grouped_sum = daily_df.groupby(["computed_metro_cbsa", "date"]).sum()
+with multiprocessing.Pool(processes = nprocess) as pool:
+    metro_items = pool.starmap(generate_metro_item, zip(daily_df.groupby(["computed_metro_cbsa", "date"]), repeat(grouped_sum), repeat(metro)))
+    pool.close()
+    pool.join()
+    items.extend(metro_items)
+    print("Completed generation of {} metro items.".format(len(metro_items)))
+
+for item in items:
+    for k,v in item.items():
+        if type(v) == np.int64:
+            item[k] = int(v)
+        if type(v) == np.float64 or type(v) == np.float:
+            item[k] = float(v)
+
+out_json_path = "./data/biothings_items.json"
+with open(out_json_path, "w") as fout:
     json.dump(items, fout)
     fout.close()
+
+print("Wrote {} items to {}".format(len(items), out_json_path))
