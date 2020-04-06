@@ -37,7 +37,7 @@ export_df_path = config["output"]["export_df_path"]
 out_json_path = config["output"]["out_json_path"]
 
 # Processes
-nprocess = config["process"]["nprocess"]
+nprocess = int(config["process"]["nprocess"])
 
 # Read shapefiles
 admn0_shp = fiona.open(admn0_path)
@@ -332,9 +332,9 @@ def get_us_testing_data(admn1_shp):
     for feat in us_states:
         state_tests = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
         if len(state_tests) > 0:
-            d = {}
-            current_date = None
             for state_test in state_tests:
+                d = {}
+                current_date = None
                 for k,v in state_test.items():
                     if v == None or k == "state":
                         continue
@@ -486,7 +486,7 @@ centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[nyc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_metro_lat"] = centroid[1]
 # Add state for city_df records
-ny_state_feature = [i for i in adm1_shp if i["properties"]["iso_3166_2"] == "US-NY"][0]
+ny_state_feature = [i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-NY"][0]
 centroid = get_centroid(ny_state_feature["geometry"])
 daily_df.loc[nyc_df.index, "computed_state_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_state_lat"] = centroid[1]
@@ -505,7 +505,7 @@ centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[kc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_metro_lat"] = centroid[1]
 # Add state for city_df records
-mo_state_feature = [i for i in adm1_shp if i["properties"]["iso_3166_2"] == "US-MO"][0]
+mo_state_feature = [i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-MO"][0]
 centroid = get_centroid(mo_state_feature["geometry"])
 daily_df.loc[kc_df.index, "computed_state_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_state_lat"] = centroid[1]
