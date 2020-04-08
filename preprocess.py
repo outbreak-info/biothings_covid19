@@ -541,6 +541,15 @@ daily_df.to_csv(export_df_path)
 # Generate items and stats #
 ############################
 
+def compute_doubling_rate(cases):
+    x = np.arange(5)
+    y = np.log(cases)
+    m,b = np.polyfit(x, y, 1)
+    m = np.round(m,3)
+    dr = np.log(2)/m
+    dr = np.round(dr, 3)
+    return dr if not np.isposinf(dr) and not np.isneginf(dr) else np.nan
+
 def compute_days_since(cases, ncases, current_date):
     if cases[cases >= ncases].shape[0] == 0:
         return None
@@ -548,22 +557,28 @@ def compute_days_since(cases, ncases, current_date):
     if cases[cases < ncases].shape[0] == 0:
         return None
     last_lt_ncases = cases[cases < ncases].index[-1]
-    offset_cases = (ncases - cases.loc[last_lt_ncases])/(cases.loc[first_gte_ncases] - cases.loc[last_lt_ncases])
+    offset_cases = (ncases - cases.loc[last_lt_ncases])/(cases.loc[first_gte_ncases] - cases.loc[last_lt_ncases]) if cases.loc[first_gte_ncases] != ncases else 0
     days_since_ncases = (current_date - first_gte_ncases).days + offset_cases
     return np.round(days_since_ncases, 3)
 
 def compute_stats(item, grp, grouped_sum, iso3, current_date):
     keys = ["Confirmed", "Recovered", "Deaths"]
     api_keys = ["confirmed", "recovered", "dead"]
+    sorted_group_sum = grouped_sum.loc[iso3]["Confirmed"].sort_index()
+    item["mostRecent"] = (current_date == sorted_group_sum.iloc[-1])
     first_date = {}
     for key,api_key in zip(keys, api_keys):
         sorted_group_sum = grouped_sum.loc[iso3][key].sort_index()
         item[api_key] = grp[key].sum()
-        item[api_key+"_currentCases"] = sorted_group_sum.iloc[-1]
-        item[api_key+"_currentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
-        if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0:
-            item[api_key+"_currentPctIncrease"] = ((sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2])/sorted_group_sum.iloc[-2])
-        item[api_key+"_currentToday"] = sorted_group_sum.index[-1].strftime("%Y-%m-%d")
+        # Doubling rate
+        dr = sorted_group_sum.rolling(5).apply(lambda x: compute_doubling_rate(x), raw = True)
+        if current_date in dr.index and not np.isnan(dr.loc[current_date]):
+            item[api_key+"_doublingRate"] = dr.loc[current_date]
+        # item[api_key+"_currentCases"] = sorted_group_sum.iloc[-1]
+        # item[api_key+"_currentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
+        # if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0:
+        #     item[api_key+"_currentPctIncrease"] = ((sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2])/sorted_group_sum.iloc[-2])
+        # item[api_key+"_currentToday"] = sorted_group_sum.index[-1].strftime("%Y-%m-%d")
         first_date[key] = sorted_group_sum[sorted_group_sum > 0].index[0] if sorted_group_sum[sorted_group_sum > 0].shape[0] > 0 else ""
         item[api_key+"_firstDate"] = first_date[key].strftime("%Y-%m-%d") if first_date[key] != "" else ""
         item[api_key+"_newToday"] = True if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] > 0 else False
@@ -573,17 +588,17 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
     # daysSince100Cases
     confirmed_cases = grouped_sum.loc[iso3]["Confirmed"].sort_index()
     days_since_100_cases = compute_days_since(confirmed_cases, 100, current_date)
-    if days_since_100_cases != None:
+    if days_since_100_cases != None and days_since_100_cases >= 0:
         item["daysSince100Cases"] = days_since_100_cases
     # daysSince10Deaths
     deaths = grouped_sum.loc[iso3]["Deaths"].sort_index()
     days_since_10_deaths = compute_days_since(deaths, 10, current_date)
-    if days_since_10_deaths != None:
+    if days_since_10_deaths != None and days_since_10_deaths >= 0:
         item["daysSince10Deaths"] = days_since_10_deaths
     # daysSince50Deaths
     deaths = grouped_sum.loc[iso3]["Deaths"].sort_index()
     days_since_50_deaths = compute_days_since(deaths, 50, current_date)
-    if days_since_50_deaths != None:
+    if days_since_50_deaths != None and days_since_50_deaths>=0:
         item["daysSince50Deaths"] = days_since_50_deaths
 
 format_id = lambda x: x.replace(" ", "_").replace("&", "_")
