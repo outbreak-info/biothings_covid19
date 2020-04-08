@@ -565,7 +565,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
     keys = ["Confirmed", "Recovered", "Deaths"]
     api_keys = ["confirmed", "recovered", "dead"]
     sorted_group_sum = grouped_sum.loc[iso3]["Confirmed"].sort_index()
-    item["mostRecent"] = (current_date == sorted_group_sum.iloc[-1])
+    item["mostRecent"] = (current_date == sorted_group_sum.index[-1])
     first_date = {}
     for key,api_key in zip(keys, api_keys):
         sorted_group_sum = grouped_sum.loc[iso3][key].sort_index()
