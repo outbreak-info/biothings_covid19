@@ -4,7 +4,7 @@
   "dumper" : {
     "schedule": "0 * * * *",
     "data_url" : [
-      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/biothings_items.json"
+      "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/biothings_items_test.json"
     ],
         "uncompress" : false
     },

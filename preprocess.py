@@ -419,7 +419,7 @@ country_attr = {
 for k,v in country_attr.items():
     daily_df.loc[:, k] = daily_df.apply(lambda x: usa_country_feat["properties"][v] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"][v], axis =  1)
 
-daily_df.loc[:, "computed_region_wb"] = daily_df.apply(lambda x: country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"] + ": China" if x["Country_Region"] == "CHN" else usa_country_feat["properties"]["REGION_WB"] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"], axis = 1)
+daily_df.loc[:, "computed_region_wb"] = daily_df.apply(lambda x: country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"] + ": China" if x["computed_country_iso3"] == "CHN" else usa_country_feat["properties"]["REGION_WB"] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"], axis = 1)
 
 centroids = daily_df.apply(lambda x: get_centroid(usa_country_feat["geometry"]) if x["Country_Region"] == "USA_NYT" else get_centroid(country_feats[(x["Lat"], x["Long"])]["geometry"]), axis = 1)
 daily_df.loc[:, "computed_country_long"] = [i[0] for i in centroids]
@@ -541,6 +541,17 @@ daily_df.to_csv(export_df_path)
 # Generate items and stats #
 ############################
 
+def compute_days_since(cases, ncases, current_date):
+    if cases[cases >= ncases].shape[0] == 0:
+        return None
+    first_gte_ncases = cases[cases >= ncases].index[0]
+    if cases[cases < ncases].shape[0] == 0:
+        return None
+    last_lt_ncases = cases[cases < ncases].index[-1]
+    offset_cases = (ncases - cases.loc[last_lt_ncases])/(cases.loc[first_gte_ncases] - cases.loc[last_lt_ncases])
+    days_since_ncases = (current_date - first_gte_ncases).days + offset_cases
+    return np.round(days_since_ncases, 3)
+
 def compute_stats(item, grp, grouped_sum, iso3, current_date):
     keys = ["Confirmed", "Recovered", "Deaths"]
     api_keys = ["confirmed", "recovered", "dead"]
@@ -559,6 +570,21 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key+"_numIncrease"] = sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)] if current_date - timedelta(days = 1) in sorted_group_sum.index else sorted_group_sum[current_date]
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
+    # daysSince100Cases
+    confirmed_cases = grouped_sum.loc[iso3]["Confirmed"].sort_index()
+    days_since_100_cases = compute_days_since(confirmed_cases, 100, current_date)
+    if days_since_100_cases != None:
+        item["daysSince100Cases"] = days_since_100_cases
+    # daysSince10Deaths
+    deaths = grouped_sum.loc[iso3]["Deaths"].sort_index()
+    days_since_10_deaths = compute_days_since(deaths, 10, current_date)
+    if days_since_10_deaths != None:
+        item["daysSince10Deaths"] = days_since_10_deaths
+    # daysSince50Deaths
+    deaths = grouped_sum.loc[iso3]["Deaths"].sort_index()
+    days_since_50_deaths = compute_days_since(deaths, 50, current_date)
+    if days_since_50_deaths != None:
+        item["daysSince50Deaths"] = days_since_50_deaths
 
 format_id = lambda x: x.replace(" ", "_").replace("&", "_")
 
