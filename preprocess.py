@@ -557,7 +557,7 @@ def compute_days_since(cases, ncases, current_date):
     if cases[cases < ncases].shape[0] == 0:
         return None
     last_lt_ncases = cases[cases < ncases].index[-1]
-    offset_cases = (ncases - cases.loc[last_lt_ncases])/(cases.loc[first_gte_ncases] - cases.loc[last_lt_ncases]) if cases.loc[first_gte_ncases] != ncases else 0
+    offset_cases = 1 - ((ncases - cases.loc[last_lt_ncases])/(cases.loc[first_gte_ncases] - cases.loc[last_lt_ncases]))
     days_since_ncases = (current_date - first_gte_ncases).days + offset_cases
     return np.round(days_since_ncases, 3)
 
