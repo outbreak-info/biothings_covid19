@@ -6,7 +6,7 @@ from biothings import config
 logging = config.logger
 
 def load_annotations(data_folder):
-    json_path = os.path.join(data_folder,"biothings_items.json")
+    json_path = os.path.join(data_folder,"biothings_items_test.json")
     items = []
     with open(json_path) as f:
         items = json.load(f)
