@@ -583,7 +583,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key+"_firstDate"] = first_date[key].strftime("%Y-%m-%d") if first_date[key] != "" else ""
         item[api_key+"_newToday"] = True if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] > 0 else False
         item[api_key+"_numIncrease"] = sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)] if current_date - timedelta(days = 1) in sorted_group_sum.index else sorted_group_sum[current_date]
-        if current_date - timedelta(days = 1) in sorted_group_sum.index:
+        if current_date - timedelta(days = 1) in sorted_group_sum.index and sorted_group_sum[current_date - timedelta(days = 1)] > 0:
             item[api_key+"_pctIncrease"] = (sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)])/sorted_group_sum[current_date - timedelta(days = 1)]
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
