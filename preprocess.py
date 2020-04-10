@@ -207,7 +207,8 @@ fips_iso3 = {
     "GUM": "66",
     "MNP": "69",
     "VIR": "78",
-    "PRI": "72"
+    "PRI": "72",
+    "ASM": "60"
 }
 
 # Extract matching features from NE shapefiles
@@ -218,7 +219,7 @@ for fips in nyt_state["fips"].unique():
     feats = [i for i in usa_admn1_shp if (i["properties"]["fips"] != None and i["properties"]["fips"][2:] == fips) or (i["properties"]["adm0_a3"] != "USA" and fips_iso3[i["properties"]["adm0_a3"]] == fips)]
     if len(feats) == 0:
         print("NYT Data doesn't have matching for state with fips {}".format(fips))
-        continue
+        assert False, "FIPS for NYT data missing. Please add iso3 code to fips_iso3 dict on line 205"
     us_state_feats.append([fips, feats[0]])
 
 us_state_feats = dict(us_state_feats)
