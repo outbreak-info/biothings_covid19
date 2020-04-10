@@ -35,21 +35,14 @@ def get_customized_mapping(cls):
                 }
             }
         },
+        "mostRecent": {
+            "type": "boolean"
+        },
         "confirmed": {
             "type": "float"
         },
-        "confirmed_currentCases": {
+        "confirmed_doublingRate": {
             "type": "float"
-        },
-        "confirmed_currentIncrease": {
-            "type": "float"
-        },
-        "confirmed_currentPctIncrease": {
-            "type": "float"
-        },
-        "confirmed_currentToday": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
         },
         "confirmed_firstDate": {
             "normalizer": "keyword_lowercase_normalizer",
@@ -61,18 +54,11 @@ def get_customized_mapping(cls):
         "confirmed_numIncrease": {
             "type": "float"
         },
+        "confirmed_pctIncrease": {
+            "type": "float"
+        },
         "recovered": {
             "type": "float"
-        },
-        "recovered_currentCases": {
-            "type": "float"
-        },
-        "recovered_currentIncrease": {
-            "type": "float"
-        },
-        "recovered_currentToday": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
         },
         "recovered_firstDate": {
             "normalizer": "keyword_lowercase_normalizer",
@@ -87,16 +73,6 @@ def get_customized_mapping(cls):
         "dead": {
             "type": "float"
         },
-        "dead_currentCases": {
-            "type": "float"
-        },
-        "dead_currentIncrease": {
-            "type": "float"
-        },
-        "dead_currentToday": {
-            "normalizer": "keyword_lowercase_normalizer",
-            "type": "keyword"
-        },
         "dead_firstDate": {
             "normalizer": "keyword_lowercase_normalizer",
             "type": "keyword"
@@ -107,11 +83,23 @@ def get_customized_mapping(cls):
         "dead_numIncrease": {
             "type": "float"
         },
-        "dead_currentPctIncrease": {
-            "type": "float"
-        },
         "first_dead-first_confirmed": {
             "type": "integer"
+        },
+        "dead_pctIncrease": {
+            "type": "float"
+        },
+        "daysSince100Cases": {
+            "type": "float"
+        },
+        "dead_doublingRate": {
+            "type": "float"
+        },
+        "daysSince10Deaths": {
+            "type": "float"
+        },
+        "daysSince50Deaths": {
+            "type": "float"
         },
         "population": {
             "type": "integer"
@@ -126,7 +114,7 @@ def get_customized_mapping(cls):
         "gdp_per_capita": {
             "type": "float"
         },
-        "recovered_currentPctIncrease": {
+        "recovered_pctIncrease": {
             "type": "float"
         },
         "country_iso3": {
@@ -137,6 +125,9 @@ def get_customized_mapping(cls):
             "type": "integer"
         },
         "country_gdp_per_capita": {
+            "type": "float"
+        },
+        "recovered_doublingRate": {
             "type": "float"
         },
         "testing_positive": {
@@ -186,20 +177,26 @@ def get_customized_mapping(cls):
         "testing_death": {
             "type": "float"
         },
+        "testing_hospitalizedCurrently": {
+            "type": "float"
+        },
         "testing_recovered": {
             "type": "float"
         },
-        "testing_hospitalizedCurrently": {
+        "state_iso3": {
+            "normalizer": "keyword_lowercase_normalizer",
+            "type": "keyword"
+        },
+        "testing_inIcuCurrently": {
             "type": "float"
         },
         "testing_inIcuCumulative": {
             "type": "float"
         },
-        "testing_inIcuCurrently": {
-            "type": "float"
+        "iso3": {
+            "type": "keyword"
         },
-        "state_iso3": {
-            "normalizer": "keyword_lowercase_normalizer",
+        "state_name": {
             "type": "keyword"
         },
         "name": {
@@ -208,13 +205,7 @@ def get_customized_mapping(cls):
         "country_name": {
             "type": "keyword"
         },
-        "iso3": {
-            "type": "keyword"
-        },
         "wb_region": {
-            "type": "keyword"
-        },
-        "state_name": {
             "type": "keyword"
         }
     }
