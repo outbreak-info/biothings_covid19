@@ -340,7 +340,8 @@ def get_us_testing_data(admn1_shp):
                     if v == None or k == "state":
                         continue
                     if k in ["lastUpdateEt", "checkTimeEt"]:
-                        v = dt.strptime(v, "%m/%d %H:%M").strftime("2020-%m-%d %H:%M")
+                        v = dt.strptime("2020/"+v, "%Y/%m/%d %H:%M") if len(v.split("/")) == 2 else dt.strptime(v, "%m/%d/%Y %H:%M") # Deals with 1900 being default year for Feb 29th without year
+                        v = v.strftime("2020-%m-%d %H:%M") 
                     if k  == "date":
                         current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
                     d[k] = v
