@@ -572,6 +572,14 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
     for key,api_key in zip(keys, api_keys):
         sorted_group_sum = grouped_sum.loc[iso3][key].sort_index()
         item[api_key] = grp[key].sum()
+        # Rolling mean
+        tmp_grp = sorted_group_sum.reset_index()
+        rolling_average = tmp_grp.apply(lambda x: tmp_grp[(tmp_grp["date"]<=(x["date"] + timedelta(days = 3))) & (tmp_grp["date"] >= x["date"] - timedelta(days = 3))][key].mean(), axis = 1)
+        tmp_grp["rolling"] = rolling_average.tolist()
+        tmp_grp = tmp_grp.set_index("date")
+        print(tmp_grp)
+        if current_date in tmp_grp.index and not np.isnan(tmp_grp.loc[current_date, "rolling"]):
+            item[api_key+"_rolling"] = tmp_grp.loc[current_date]
         # Doubling rate
         dr = sorted_group_sum.rolling(5).apply(lambda x: compute_doubling_rate(x), raw = True)
         if current_date in dr.index and not np.isnan(dr.loc[current_date]):
