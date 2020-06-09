@@ -578,7 +578,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         tmp_grp["rolling"] = rolling_average.tolist()
         tmp_grp = tmp_grp.set_index("date")
         if current_date in tmp_grp.index and not np.isnan(tmp_grp.loc[current_date, "rolling"]):
-            item[api_key+"_rolling"] = tmp_grp.loc[current_date]
+            item[api_key+"_rolling"] = tmp_grp.loc[current_date, "rolling"]
         # Doubling rate
         dr = sorted_group_sum.rolling(5).apply(lambda x: compute_doubling_rate(x), raw = True)
         if current_date in dr.index and not np.isnan(dr.loc[current_date]):
