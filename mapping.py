@@ -41,6 +41,9 @@ def get_customized_mapping(cls):
         "confirmed": {
             "type": "float"
         },
+        "confirmed_rolling": {
+            "type": "float"
+        },
         "confirmed_doublingRate": {
             "type": "float"
         },
@@ -60,6 +63,9 @@ def get_customized_mapping(cls):
         "recovered": {
             "type": "float"
         },
+        "recovered_rolling": {
+            "type": "float"
+        },
         "recovered_firstDate": {
             "normalizer": "keyword_lowercase_normalizer",
             "type": "keyword"
@@ -71,6 +77,9 @@ def get_customized_mapping(cls):
             "type": "float"
         },
         "dead": {
+            "type": "float"
+        },
+        "dead_rolling": {
             "type": "float"
         },
         "dead_firstDate": {
