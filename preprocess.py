@@ -544,10 +544,12 @@ daily_df.to_csv(export_df_path)
 ############################
 
 def compute_doubling_rate(cases):
-    x = np.arange(5)
+    x = np.arange(len(cases))
     y = np.log(cases)
     m,b = np.polyfit(x, y, 1)
     m = np.round(m,3)
+    if m <= 0:
+        return np.nan
     dr = np.log(2)/m
     dr = np.round(dr, 3)
     return dr if not np.isposinf(dr) and not np.isneginf(dr) else np.nan
@@ -574,15 +576,15 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key] = grp[key].sum()
         # Rolling mean
         tmp_grp = sorted_group_sum.reset_index()
-        rolling_average = tmp_grp.apply(lambda x: tmp_grp[(tmp_grp["date"]<=(x["date"] + timedelta(days = 3))) & (tmp_grp["date"] >= x["date"] - timedelta(days = 3))][key].mean(), axis = 1)
-        tmp_grp["rolling"] = rolling_average.tolist()
-        tmp_grp = tmp_grp.set_index("date")
-        if current_date in tmp_grp.index and not np.isnan(tmp_grp.loc[current_date, "rolling"]):
-            item[api_key+"_rolling"] = tmp_grp.loc[current_date, "rolling"]
+        rolling_average = tmp_grp[(tmp_grp["date"]<=(current_date + timedelta(days = 3))) & (tmp_grp["date"] >= current_date - timedelta(days = 3))][key].mean()
+        if current_date in sorted_group_sum.index and not np.isnan(rolling_average):
+            item[api_key+"_rolling"] = rolling_average
         # Doubling rate
-        dr = sorted_group_sum.rolling(5).apply(lambda x: compute_doubling_rate(x), raw = True)
-        if current_date in dr.index and not np.isnan(dr.loc[current_date]):
-            item[api_key+"_doublingRate"] = dr.loc[current_date]
+        val_dr = tmp_grp[(tmp_grp["date"]<= current_date) & (tmp_grp["date"] >= current_date - timedelta(days = 4))][key].tolist()
+        val_dr = [i for i in val_dr if i > 0]
+        dr = compute_doubling_rate(val_dr) if len(val_dr) > 1 else np.nan
+        if current_date in sorted_group_sum.index and not np.isnan(dr):
+            item[api_key+"_doublingRate"] = dr
         # item[api_key+"_currentCases"] = sorted_group_sum.iloc[-1]
         # item[api_key+"_currentIncrease"] = sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] if len(sorted_group_sum) > 1 else sorted_group_sum.iloc[-1]
         # if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-2] !=0:
