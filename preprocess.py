@@ -339,7 +339,7 @@ def get_us_testing_data(admn1_shp):
                 for k,v in state_test.items():
                     if v == None or k == "state":
                         continue
-                    if k in ["lastUpdateEt", "checkTimeEt"]:
+                    if k in ["lastUpdateEt", "checkTimeEt"] and type(v) != int and "/" in v:
                         v = dt.strptime("2020/"+v, "%Y/%m/%d %H:%M") if len(v.split("/")) == 2 else dt.strptime(v, "%m/%d/%Y %H:%M") # Deals with 1900 being default year for Feb 29th without year
                         v = v.strftime("2020-%m-%d %H:%M") 
                     if k  == "date":
