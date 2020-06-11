@@ -571,12 +571,13 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
     sorted_group_sum = grouped_sum.loc[iso3]["Confirmed"].sort_index()
     item["mostRecent"] = (current_date == sorted_group_sum.index[-1])
     first_date = {}
+    compute_num_increase = lambda x: sorted_group_sum[x] - sorted_group_sum[x - timedelta(days = 1)] if x - timedelta(days = 1) in sorted_group_sum.index else sorted_group_sum[x]
     for key,api_key in zip(keys, api_keys):
         sorted_group_sum = grouped_sum.loc[iso3][key].sort_index()
         item[api_key] = grp[key].sum()
         # Rolling mean
         tmp_grp = sorted_group_sum.reset_index()
-        rolling_average = tmp_grp[(tmp_grp["date"]<=(current_date + timedelta(days = 3))) & (tmp_grp["date"] >= current_date - timedelta(days = 3))][key].mean()
+        rolling_average = tmp_grp[(tmp_grp["date"]<=(current_date + timedelta(days = 3))) & (tmp_grp["date"] >= current_date - timedelta(days = 3))]["date"].apply(compute_num_increase).mean()
         if current_date in sorted_group_sum.index and not np.isnan(rolling_average):
             item[api_key+"_rolling"] = rolling_average
         # Doubling rate
@@ -593,7 +594,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         first_date[key] = sorted_group_sum[sorted_group_sum > 0].index[0] if sorted_group_sum[sorted_group_sum > 0].shape[0] > 0 else ""
         item[api_key+"_firstDate"] = first_date[key].strftime("%Y-%m-%d") if first_date[key] != "" else ""
         item[api_key+"_newToday"] = True if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] > 0 else False
-        item[api_key+"_numIncrease"] = sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)] if current_date - timedelta(days = 1) in sorted_group_sum.index else sorted_group_sum[current_date]
+        item[api_key+"_numIncrease"] = compute_num_increase(current_date)
         if current_date - timedelta(days = 1) in sorted_group_sum.index and sorted_group_sum[current_date - timedelta(days = 1)] > 0:
             item[api_key+"_pctIncrease"] = (sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)])/sorted_group_sum[current_date - timedelta(days = 1)]
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
