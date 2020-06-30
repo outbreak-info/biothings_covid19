@@ -577,7 +577,9 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key] = grp[key].sum()
         # Rolling mean
         tmp_grp = sorted_group_sum.reset_index()
-        rolling_average = tmp_grp[(tmp_grp["date"]<=(current_date + timedelta(days = 3))) & (tmp_grp["date"] >= current_date - timedelta(days = 3))]["date"].apply(compute_num_increase).mean()
+        rolling_average = tmp_grp[(tmp_grp["date"]<=(current_date + timedelta(days = 3))) & (tmp_grp["date"] >= current_date - timedelta(days = 3))]["date"].apply(compute_num_increase)
+        # Exclude negative values from lib import funs rolling average
+        rolling_average = rolling_average[rolling_average >= 0].mean()
         if current_date in sorted_group_sum.index and not np.isnan(rolling_average):
             item[api_key+"_rolling"] = rolling_average
         # Doubling rate
