@@ -584,7 +584,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
             item[api_key+"_rolling"] = rolling_average
         # Compute rolling mean 2 weeks ago
         rolling_average_14days_ago = tmp_grp[(tmp_grp["date"]<=((current_date - timedelta(days=14)) + timedelta(days = 3))) & (tmp_grp["date"] >= (current_date - timedelta(days=14)) - timedelta(days = 3))]["date"].apply(compute_num_increase)
-        rolling_average_14days_ago = rolling_average_14days_ago[rolling_average_14days_ago >= 0].mean()
+        rolling_average_14days_ago = rolling_average_14days_ago[rolling_average_14days_ago >= 0].mean() if rolling_average_14days_ago.shape[0] > 0 else np.nan
         if current_date in sorted_group_sum.index and not np.isnan(rolling_average_14days_ago):
             item[api_key+"_rolling_14days_ago"] = rolling_average_14days_ago
         # Doubling rate
