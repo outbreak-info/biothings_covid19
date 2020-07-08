@@ -104,7 +104,26 @@ def get_closest_polygon(coords, shp):
 #######################
 
 def read_daily_report(path):
-    df = pd.read_csv(path)
+    _dtypes = {
+        "Provine/State": str,
+        "Country/Region": str,
+        "Laste Update": str,
+        "Confirmed": float,
+        "Deaths": float,
+        "Recovered": float,
+        "Lat": float,
+        "Long_":float,
+        "FIPS": str,
+        "Admin2": str,
+        "Province_State": str,
+        "Country_Region": str,
+        "Last_Update": str,
+        "Active": float,
+        "Combined_Key": str,
+        "Incidence_Rate": float,
+        "Case-Fatality_Ratio": float
+    }
+    df = pd.read_csv(path, dtype = _dtypes)
     df.columns = [i.replace("/", "_").replace(" ", "_").strip() for i in df.columns]
     df.columns = [i if i not in ["Lat", "Latitude"] else "Lat" for i in df.columns]
     df.columns = [i if i not in ["Long_", "Longitude"] else "Long"for i in df.columns]
