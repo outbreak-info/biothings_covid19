@@ -19,7 +19,7 @@ Create a new virtual environment and install the requirements for running the pr
 
 ##### Data:
 1. [Country GDP per capita](https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?most_recent_value_desc=true)
-2. [US Census Sep 2018 metropolitan CBSA](https://www2.census.gov/programs-surveys/metro-micro/geographies/reference-files/2018/delineation-files/list1_Sep_2018.xls) Data from here is exported as csv to data/census_metropolitan_areas.csv with lines corresponding to the title and notes removed from the top and bottom of the file.
+2. [US Census Sep 2018 metropolitan CBSA](https://www2.census.gov/programs-surveys/metro-micro/geographies/reference-files/2018/delineation-files/list1_Sep_2018.xls) exported as census_metropolitan_areas.csv 
 
 ##### Repos
 1. [JHU CSSE COVID-19 data](https://github.com/CSSEGISandData/COVID-19). A fork of this data with small corrections is available [here](https://github.com/gkarthik/COVID-19).
