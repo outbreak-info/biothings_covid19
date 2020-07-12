@@ -104,7 +104,26 @@ def get_closest_polygon(coords, shp):
 #######################
 
 def read_daily_report(path):
-    df = pd.read_csv(path)
+    _dtypes = {
+        "Provine/State": str,
+        "Country/Region": str,
+        "Laste Update": str,
+        "Confirmed": float,
+        "Deaths": float,
+        "Recovered": float,
+        "Lat": float,
+        "Long_":float,
+        "FIPS": str,
+        "Admin2": str,
+        "Province_State": str,
+        "Country_Region": str,
+        "Last_Update": str,
+        "Active": float,
+        "Combined_Key": str,
+        "Incidence_Rate": float,
+        "Case-Fatality_Ratio": float
+    }
+    df = pd.read_csv(path, dtype = _dtypes)
     df.columns = [i.replace("/", "_").replace(" ", "_").strip() for i in df.columns]
     df.columns = [i if i not in ["Lat", "Latitude"] else "Lat" for i in df.columns]
     df.columns = [i if i not in ["Long_", "Longitude"] else "Long"for i in df.columns]
@@ -413,28 +432,43 @@ daily_df.loc[sub_df.index, "computed_state_long"] = 181
 
 # Country
 print("Populating countries ... ")
-country_attr = {
-    "computed_country_name": "NAME",
-    "computed_country_pop": "POP_EST",
-    "computed_country_iso3": "ADM0_A3"
-}
-for k,v in country_attr.items():
-    daily_df.loc[:, k] = daily_df.apply(lambda x: usa_country_feat["properties"][v] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"][v], axis =  1)
 
-daily_df.loc[:, "computed_region_wb"] = daily_df.apply(lambda x: country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"] + ": China" if x["computed_country_iso3"] == "CHN" else usa_country_feat["properties"]["REGION_WB"] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"], axis = 1)
+def populate_country(x):
+    country_attr = {
+        "computed_country_name": "NAME",
+        "computed_country_pop": "POP_EST",
+        "computed_country_iso3": "ADM0_A3"
+    }
+    centroid = get_centroid(usa_country_feat["geometry"]) if x["Country_Region"] == "USA_NYT" else get_centroid(country_feats[(x["Lat"], x["Long"])]["geometry"])
+    get_val = lambda x,v: usa_country_feat["properties"][v] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"][v]
+    attr = dict([[k, get_val(x,v)] for k,v in country_attr.items()])
+    attr.update({
+        "computed_region_wb": country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"] + ": China" if x["computed_country_iso3"] == "CHN" else usa_country_feat["properties"]["REGION_WB"] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"],
+        "computed_country_long": centroid[0],
+        "computed_country_lat": centroid[1]
+    })
+    return pd.Series(attr)
 
-centroids = daily_df.apply(lambda x: get_centroid(usa_country_feat["geometry"]) if x["Country_Region"] == "USA_NYT" else get_centroid(country_feats[(x["Lat"], x["Long"])]["geometry"]), axis = 1)
-daily_df.loc[:, "computed_country_long"] = [i[0] for i in centroids]
-daily_df.loc[:, "computed_country_lat"] = [i[1] for i in centroids]
+tmp = daily_df.apply(populate_country, axis =  1)
+daily_df = pd.concat([daily_df, tmp], axis = 1)
 
 # US States set lat. For New York City and Kansas City, lat_lng already set
 print("Populating US States ... ")
 us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
-centroids = us_states["fips"].apply(lambda x: get_centroid(us_state_feats[x[:2]]["geometry"]))
-daily_df.loc[us_states.index, "computed_state_long"] = [i[0] for i in centroids]
-daily_df.loc[us_states.index, "computed_state_lat"] = [i[1] for i in centroids]
-daily_df.loc[us_states.index, "computed_state_name"] = us_states["fips"].apply(lambda x: us_state_feats[x[:2]]["properties"]["name"])
-daily_df.loc[us_states.index, "computed_state_iso3"] = us_states["fips"].apply(lambda x: us_state_feats[x[:2]]["properties"]["iso_3166_2"])
+
+def populate_state(x):
+    centroid = get_centroid(us_state_feats[x["fips"][:2]]["geometry"])
+    attr = {
+        "computed_state_long": centroid[0],
+        "computed_state_lat": centroid[1],
+        "computed_state_name": us_state_feats[x["fips"][:2]]["properties"]["name"],
+        "computed_state_iso3": us_state_feats[x["fips"][:2]]["properties"]["iso_3166_2"]
+    }
+    return pd.Series(attr)
+
+tmp = us_states.apply(populate_state, axis= 1)
+daily_df = pd.concat([daily_df, tmp], axis = 1)
+
 # Add testing data to states in US
 us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
 check_testing_states = us_states.apply(lambda x: (x["date"].strftime("%Y-%m-%d") + "_" + x["computed_state_iso3"]) in us_testing, axis = 1)
@@ -450,29 +484,53 @@ for k in testing_keys:
 # Non US states set lat_lng
 print("Populating Admin1 regions outside US ... ")
 non_us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] != "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
-centroids = non_us_states.apply(lambda x: get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"]), axis = 1)
-daily_df.loc[non_us_states.index, "computed_state_long"] = [i[0] for i in centroids]
-daily_df.loc[non_us_states.index, "computed_state_lat"] = [i[1] for i in centroids]
-daily_df.loc[non_us_states.index, "computed_state_name"] = non_us_states.apply(lambda x: state_feats[(x["Lat"], x["Long"])]["properties"]["name"], axis = 1)
-daily_df.loc[non_us_states.index, "computed_state_iso3"] = non_us_states.apply(lambda x: state_feats[(x["Lat"], x["Long"])]["properties"]["iso_3166_2"], axis = 1)
+
+def populate_non_us_states(x):
+    cetroid = get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"])
+    attr = {
+        "computed_state_long": centroid[0],
+        "computed_state_lat": centroid[1],
+        "computed_state_name": state_feats[(x["Lat"], x["Long"])]["properties"]["name"],
+        "computed_state_iso3": state_feats[(x["Lat"], x["Long"])]["properties"]["iso_3166_2"]
+    }
+    return pd.Series(attr)
+
+tmp = non_us_states.apply(populate_state, axis= 1)
+daily_df = pd.concat([daily_df, tmp], axis = 1)
 
 # Admin2
 print("Populating US counties ... ")
 us_county_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & ~(daily_df["Admin2"] == "Unassigned") & ~(pd.isna(daily_df["Admin2"])) & ~(daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
-daily_df.loc[us_county_df.index, "computed_county_name"] = us_county_df["fips"].apply(lambda x: usa_admn2_feats[x]["properties"]["NAMELSAD"])
-daily_df.loc[us_county_df.index, "computed_county_iso3"] = us_county_df["fips"].apply(lambda x: usa_admn2_feats[x]["properties"]["STATEFP"] + usa_admn2_feats[x]["properties"]["COUNTYFP"])
-centroids = us_county_df["fips"].apply(lambda x: get_centroid(usa_admn2_feats[x]["geometry"]))
-daily_df.loc[us_county_df.index, "computed_county_long"] = [i[0] for i in centroids]
-daily_df.loc[us_county_df.index, "computed_county_lat"] = [i[1] for i in centroids]
+
+def populate_us_county(x):
+    cetroid = get_centroid(usa_admn2_feats[x]["geometry"])
+    attr = {
+        "computed_county_long": centroid[0],
+        "computed_county_lat": centroid[1],
+        "computed_county_name": usa_admn2_feats[x]["properties"]["NAMELSAD"],
+        "computed_county_iso3": usa_admn2_feats[x]["properties"]["STATEFP"] + usa_admn2_feats[x]["properties"]["COUNTYFP"]
+    }
+    return pd.Series(attr)
+
+tmp = us_county_df.apply(populate_state, axis= 1)
+daily_df = pd.concat([daily_df, tmp], axis = 1)
 
 # Add metropolitan areas
 print("Populating metropolitan areas ...")
 us_metro_df = us_county_df[~us_county_df["CBSA_Code"].isna()]
-daily_df.loc[us_metro_df.index, "computed_metro_cbsa"] = us_metro_df["CBSA_Code"].apply(lambda x: metro_feats[x]["properties"]["CBSAFP"] if metro_feats[x] != None else None)
-daily_df.loc[us_metro_df.index, "computed_metro_name"] = us_metro_df["CBSA_Code"].apply(lambda x: metro_feats[x]["properties"]["NAME"] if metro_feats[x] != None else None)
-centroids = us_metro_df["CBSA_Code"].apply(lambda x: get_centroid(metro_feats[x]["geometry"]) if metro_feats[x] != None else [None, None])
-daily_df.loc[us_metro_df.index, "computed_metro_long"] = [i[0] for i in centroids]
-daily_df.loc[us_metro_df.index, "computed_metro_lat"] = [i[1] for i in centroids]
+
+def populate_us_metro(x):
+    centroid = get_centroid(metro_feats[x["CBSA_Code"]]["geometry"]) if metro_feats[x["CBSA_Code"]] != None else [None, None]
+    attr = {
+        "computed_metro_long": centroid[0],
+        "computed_metro_lat": centroid[1],
+        "computed_metro_cbsa": metro_feats[x["CBSA_Code"]]["properties"]["CBSAFP"] if metro_feats[x["CBSA_Code"]] != None else None,
+        "computed_metro_name": metro_feats[x["CBSA_Code"]]["properties"]["NAME"] if metro_feats[x["CBSA_Code"]] != None else None
+    }
+    return pd.Series(attr)
+
+tmp = us_county_df.apply(populate_us_metro, axis= 1)
+daily_df = pd.concat([daily_df, tmp], axis = 1)
 
 # Add admin2 codes for cities: NYC and KC
 print("Populating cities (NYC + KC)")
@@ -532,7 +590,6 @@ for i,row in gdp_data_df.iterrows():
 gdp_trim_df = pd.DataFrame(new_rows, columns=["computed_country_iso3","gdp_update_year","country_gdp"])
 
 daily_df = pd.merge(daily_df,gdp_trim_df,on="computed_country_iso3")
-
 
 print("Dataframe ready")
 
