@@ -462,7 +462,8 @@ def populate_state(x):
         "computed_state_long": centroid[0],
         "computed_state_lat": centroid[1],
         "computed_state_name": us_state_feats[x["fips"][:2]]["properties"]["name"],
-        "computed_state_iso3": us_state_feats[x["fips"][:2]]["properties"]["iso_3166_2"]
+        "computed_state_iso3": us_state_feats[x["fips"][:2]]["properties"]["iso_3166_2"],
+        "computed_state_pop": us_state_feats[x["fips"][:2]]["properties"]["POPESTI"]
     }
     return pd.Series(attr)
 
@@ -508,7 +509,8 @@ def populate_us_county(x):
         "computed_county_long": centroid[0],
         "computed_county_lat": centroid[1],
         "computed_county_name": usa_admn2_feats[x]["properties"]["NAMELSAD"],
-        "computed_county_iso3": usa_admn2_feats[x]["properties"]["STATEFP"] + usa_admn2_feats[x]["properties"]["COUNTYFP"]
+        "computed_county_iso3": usa_admn2_feats[x]["properties"]["STATEFP"] + usa_admn2_feats[x]["properties"]["COUNTYFP"],
+        "computed_county_pop": usa_admn2_feats[x]["properties"]["POPESTI"]
     }
     return pd.Series(attr)
 
@@ -525,7 +527,8 @@ def populate_us_metro(x):
         "computed_metro_long": centroid[0],
         "computed_metro_lat": centroid[1],
         "computed_metro_cbsa": metro_feats[x["CBSA_Code"]]["properties"]["CBSAFP"] if metro_feats[x["CBSA_Code"]] != None else None,
-        "computed_metro_name": metro_feats[x["CBSA_Code"]]["properties"]["NAME"] if metro_feats[x["CBSA_Code"]] != None else None
+        "computed_metro_name": metro_feats[x["CBSA_Code"]]["properties"]["NAME"] if metro_feats[x["CBSA_Code"]] != None else None,
+        "computed_metro_pop": metro_feats[x["CBSA_Code"]]["properties"]["POPESTI"] if metro_feats[x["CBSA_Code"]] != None else None
     }
     return pd.Series(attr)
 
@@ -542,11 +545,12 @@ daily_df.loc[nyc_df.index, "computed_city_long"] = nyc_df["Long"]
 metro_feat = metro_feats["35620"]
 daily_df.loc[nyc_df.index, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
 daily_df.loc[nyc_df.index, "computed_metro_name"] = metro_feat["properties"]["NAME"]
+daily_df.loc[nyc_df.index, "computed_metro_pop"] = metro_feat["properties"]["POPESTI"]
 centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[nyc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_metro_lat"] = centroid[1]
 # Add state for city_df records
-ny_state_feature = [i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-NY"][0]
+ny_state_feature = next(i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-NY")
 centroid = get_centroid(ny_state_feature["geometry"])
 daily_df.loc[nyc_df.index, "computed_state_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_state_lat"] = centroid[1]
@@ -561,11 +565,12 @@ daily_df.loc[kc_df.index, "computed_city_long"] = kc_df["Long"]
 metro_feat = metro_feats["28140"]
 daily_df.loc[kc_df.index, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
 daily_df.loc[kc_df.index, "computed_metro_name"] = metro_feat["properties"]["NAME"]
+daily_df.loc[kc_df.index, "computed_metro_pop"] = metro_feat["properties"]["POPESTI"]
 centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[kc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_metro_lat"] = centroid[1]
 # Add state for city_df records
-mo_state_feature = [i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-MO"][0]
+mo_state_feature = next(i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-MO")
 centroid = get_centroid(mo_state_feature["geometry"])
 daily_df.loc[kc_df.index, "computed_state_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_state_lat"] = centroid[1]
@@ -663,6 +668,10 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key+"_numIncrease"] = compute_num_increase(current_date)
         if current_date - timedelta(days = 1) in sorted_group_sum.index and sorted_group_sum[current_date - timedelta(days = 1)] > 0:
             item[api_key+"_pctIncrease"] = (sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)])/sorted_group_sum[current_date - timedelta(days = 1)]
+        if "population" in item:
+            per_capita_keys = [api_key, api_key+"_rolling", api_key+"_rolling_14days_ago", api_key+"_rolling_14days_ago_diff"]
+            for per_capita_key in per_capita_keys:
+                item[per_capita_key+"_per_capita"] = item[per_capita_key]/item["population"]
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
     # daysSince100Cases
@@ -748,7 +757,8 @@ def generate_state_item(ind_grp, grouped_sum):
             if pd.isna(grp[i].iloc[0]):
                 continue
             item[i] = grp[i].iloc[0]
-            # Compute case stats
+        item["population"] = grp["computed_state_pop"].iloc[0]
+    # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
@@ -776,6 +786,8 @@ def generate_county_item(ind_grp, grouped_sum):
         "country_iso3": grp["computed_country_iso3"].iloc[0],
         "lat": grp["Lat"].iloc[0],
         "long": grp["Long"].iloc[0],
+        "population": grp["computed_county_pop"].iloc[0],
+        "state_population": grp["computed_state_pop"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0]),
@@ -838,7 +850,8 @@ for ind, grp in daily_df.groupby(["computed_city_iso3", "date"]):
         "long": grp["Long"].iloc[0],
         "_id": format_id("CITY_"+grp["computed_city_iso3"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 1.7,
-        "country_name": grp["computed_country_name"].iloc[0]
+        "country_name": grp["computed_country_name"].iloc[0],
+        "population": grp["computed_metro_pop"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     city_items.append(item)
@@ -861,7 +874,8 @@ def generate_metro_item(ind_grp, grouped_sum, metro):
         "admin_level": 1.5,
         "country_name": grp["computed_country_name"].iloc[0],
         "sub_parts": get_metro_counties(grp["CBSA_Code"].iloc[0]),
-        "wb_region": grp["computed_region_wb"].iloc[0]
+        "wb_region": grp["computed_region_wb"].iloc[0],
+        "population": grp["computed_metro_pop"].iloc[0]
     }
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
