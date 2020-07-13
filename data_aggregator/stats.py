@@ -4,6 +4,9 @@ import numpy as np
 from datetime import timedelta
 from datetime import datetime as dt
 import pandas as pd
+import logging
+
+format_id = lambda x: x.replace(" ", "_").replace("&", "_")
 
 def compute_doubling_rate(cases):
     x = np.arange(len(cases))
@@ -90,7 +93,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
 def get_metro_feat(cbsa, shp):
     feats = [i for i in shp if i["properties"]["CBSAFP"] == cbsa]
     if len(feats) == 0:
-        print("Couldn't find metro feature for CBSA code: {}".format(cbsa))
+        logging.info("Couldn't find metro feature for CBSA code: {}".format(cbsa))
         return None
     return feats[0]
 
@@ -119,7 +122,7 @@ def generate_country_item(ind_grp, grouped_sum, country_sub_national):
     return item
 
 # States
-def generate_state_item(ind_grp, grouped_sum):
+def generate_state_item(ind_grp, grouped_sum, testing_columns):
     ind,grp = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
@@ -140,7 +143,6 @@ def generate_state_item(ind_grp, grouped_sum):
         "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
     if grp["computed_country_iso3"].iloc[0] == "USA":
-        testing_columns = [i for i in daily_df.columns if "testing_" in i]
         for i in testing_columns:
             if pd.isna(grp[i].iloc[0]):
                 continue
@@ -217,7 +219,7 @@ def get_us_testing_data(admn1_shp):
     resp = requests.get(testing_api_url)
     us_testing = {}
     if resp.status_code != 200:
-        print("US testing data could not be obtained from https://covidtracking.com/api/states/daily.")
+        logging.info("US testing data could not be obtained from https://covidtracking.com/api/states/daily.")
         return us_testing
     testing = resp.json()
     for feat in us_states:

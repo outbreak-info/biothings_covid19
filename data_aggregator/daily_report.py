@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime as dt
 import os
+import logging
 
 def read_daily_report(path):
     _dtypes = {
@@ -49,7 +50,7 @@ def add_lat_long(daily_df, key, key_null = None):
         if not pd.isna(row["Lat"]) and not pd.isna(row["Long"]):
             continue
         if row[key] not in mean_lat_long.index:
-            print("Lat, Long not found for {}: {}".format(key, row[key]))
+            logging.info("Lat, Long not found for {}: {}".format(key, row[key]))
             continue
         daily_df.loc[ind, "Lat"] = mean_lat_long.loc[row[key]]["Lat"]
         daily_df.loc[ind, "Long"] = mean_lat_long.loc[row[key]]["Long"]
@@ -58,6 +59,6 @@ def add_lat_long(daily_df, key, key_null = None):
 def get_us_admn2_feat(fips, shp):
     feats = [i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYFP"]) == fips]
     if len(feats) == 0:
-        print("NYT Data doesn't have matching for county with fips {}".format(fips))
+        logging.info("NYT Data doesn't have matching for county with fips {}".format(fips))
         return None
     return feats[0]
