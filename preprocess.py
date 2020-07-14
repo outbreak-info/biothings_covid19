@@ -244,7 +244,7 @@ for fips in nyt_state["fips"].unique():
 us_state_feats = dict(us_state_feats)
 
 def get_us_admn2_feat(fips, shp):
-    feats = [i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYFP"]) == fips]
+    feats = [i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYF"]) == fips]
     if len(feats) == 0:
         print("NYT Data doesn't have matching for county with fips {}".format(fips))
         return None
@@ -350,7 +350,7 @@ def get_us_testing_data(admn1_shp):
         return us_testing
     testing = resp.json()
     for feat in us_states:
-        state_tests = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
+        state_tests = [i for i in testing if i["state"] == feat["properties"]["i_3166_"][-2:]]
         if len(state_tests) > 0:
             for state_test in state_tests:
                 d = {}
@@ -364,9 +364,9 @@ def get_us_testing_data(admn1_shp):
                     if k  == "date":
                         current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
                     d[k] = v
-                us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = copy.deepcopy(d)
+                us_testing[current_date + "_" + feat["properties"]["i_3166_"]] = copy.deepcopy(d)
         else:
-            logging.warning("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
+            logging.warning("No testing data for US State: {}".format(feat["properties"]["i_3166_"]))
     return us_testing
 
 us_testing = get_us_testing_data(admn1_shp)
@@ -450,7 +450,8 @@ def populate_country(x):
     return pd.Series(attr)
 
 tmp = daily_df.apply(populate_country, axis =  1)
-daily_df = pd.concat([daily_df, tmp], axis = 1)
+for i in tmp.columns:
+    daily_df.loc[tmp.index, i] = tmp[i]	
 
 # US States set lat. For New York City and Kansas City, lat_lng already set
 print("Populating US States ... ")
@@ -462,16 +463,18 @@ def populate_state(x):
         "computed_state_long": centroid[0],
         "computed_state_lat": centroid[1],
         "computed_state_name": us_state_feats[x["fips"][:2]]["properties"]["name"],
-        "computed_state_iso3": us_state_feats[x["fips"][:2]]["properties"]["iso_3166_2"],
+        "computed_state_iso3": us_state_feats[x["fips"][:2]]["properties"]["i_3166_"],
         "computed_state_pop": us_state_feats[x["fips"][:2]]["properties"]["POPESTI"]
     }
     return pd.Series(attr)
 
 tmp = us_states.apply(populate_state, axis= 1)
-daily_df = pd.concat([daily_df, tmp], axis = 1)
+for i in tmp.columns:
+    daily_df.loc[tmp.index, i] = tmp[i]	
 
 # Add testing data to states in US
 us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
+
 check_testing_states = us_states.apply(lambda x: (x["date"].strftime("%Y-%m-%d") + "_" + x["computed_state_iso3"]) in us_testing, axis = 1)
 us_testing_states = us_states.loc[check_testing_states]
 
@@ -486,36 +489,38 @@ for k in testing_keys:
 print("Populating Admin1 regions outside US ... ")
 non_us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] != "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
 
-def populate_non_us_states(x):
+def populate_non_us_state(x):
     cetroid = get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"])
     attr = {
         "computed_state_long": centroid[0],
         "computed_state_lat": centroid[1],
         "computed_state_name": state_feats[(x["Lat"], x["Long"])]["properties"]["name"],
-        "computed_state_iso3": state_feats[(x["Lat"], x["Long"])]["properties"]["iso_3166_2"]
+        "computed_state_iso3": state_feats[(x["Lat"], x["Long"])]["properties"]["i_3166_"]
     }
     return pd.Series(attr)
 
-tmp = non_us_states.apply(populate_state, axis= 1)
-daily_df = pd.concat([daily_df, tmp], axis = 1)
+tmp = non_us_states.apply(populate_non_us_state, axis= 1)
+for i in tmp.columns:
+    daily_df.loc[tmp.index, i] = tmp[i]	
 
 # Admin2
 print("Populating US counties ... ")
 us_county_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & ~(daily_df["Admin2"] == "Unassigned") & ~(pd.isna(daily_df["Admin2"])) & ~(daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
 
 def populate_us_county(x):
-    cetroid = get_centroid(usa_admn2_feats[x]["geometry"])
+    cetroid = get_centroid(usa_admn2_feats[x["fips"]]["geometry"])
     attr = {
         "computed_county_long": centroid[0],
         "computed_county_lat": centroid[1],
-        "computed_county_name": usa_admn2_feats[x]["properties"]["NAMELSAD"],
-        "computed_county_iso3": usa_admn2_feats[x]["properties"]["STATEFP"] + usa_admn2_feats[x]["properties"]["COUNTYFP"],
-        "computed_county_pop": usa_admn2_feats[x]["properties"]["POPESTI"]
+        "computed_county_name": usa_admn2_feats[x["fips"]]["properties"]["NAMELSA"],
+        "computed_county_iso3": usa_admn2_feats[x["fips"]]["properties"]["STATEFP"] + usa_admn2_feats[x["fips"]]["properties"]["COUNTYF"],
+        "computed_county_pop": usa_admn2_feats[x["fips"]]["properties"]["POPESTI"]
     }
     return pd.Series(attr)
 
-tmp = us_county_df.apply(populate_state, axis= 1)
-daily_df = pd.concat([daily_df, tmp], axis = 1)
+tmp = us_county_df.apply(populate_us_county, axis= 1)
+for i in tmp.columns:
+    daily_df.loc[tmp.index, i] = tmp[i]	
 
 # Add metropolitan areas
 print("Populating metropolitan areas ...")
@@ -532,8 +537,9 @@ def populate_us_metro(x):
     }
     return pd.Series(attr)
 
-tmp = us_county_df.apply(populate_us_metro, axis= 1)
-daily_df = pd.concat([daily_df, tmp], axis = 1)
+tmp = us_metro_df.apply(populate_us_metro, axis= 1)
+for i in tmp.columns:
+    daily_df.loc[tmp.index, i] = tmp[i]	
 
 # Add admin2 codes for cities: NYC and KC
 print("Populating cities (NYC + KC)")
@@ -550,7 +556,7 @@ centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[nyc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_metro_lat"] = centroid[1]
 # Add state for city_df records
-ny_state_feature = next(i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-NY")
+ny_state_feature = next(i for i in admn1_shp if i["properties"]["i_3166_"] == "US-NY")
 centroid = get_centroid(ny_state_feature["geometry"])
 daily_df.loc[nyc_df.index, "computed_state_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_state_lat"] = centroid[1]
@@ -570,7 +576,7 @@ centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[kc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_metro_lat"] = centroid[1]
 # Add state for city_df records
-mo_state_feature = next(i for i in admn1_shp if i["properties"]["iso_3166_2"] == "US-MO")
+mo_state_feature = next(i for i in admn1_shp if i["properties"]["i_3166_"] == "US-MO")
 centroid = get_centroid(mo_state_feature["geometry"])
 daily_df.loc[kc_df.index, "computed_state_long"] = centroid[0]
 daily_df.loc[kc_df.index, "computed_state_lat"] = centroid[1]
@@ -671,7 +677,9 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         if "population" in item:
             per_capita_keys = [api_key, api_key+"_rolling", api_key+"_rolling_14days_ago", api_key+"_rolling_14days_ago_diff"]
             for per_capita_key in per_capita_keys:
-                item[per_capita_key+"_per_capita"] = item[per_capita_key]/item["population"]
+                if per_capita_key not in item:
+                    continue
+                item[per_capita_key+"_per_100k"] = (item[per_capita_key]/item["population"]) * 100000
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
     # daysSince100Cases
