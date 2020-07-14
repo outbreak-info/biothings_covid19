@@ -234,6 +234,24 @@ def get_customized_mapping(cls):
         },
         "wb_region": {
             "type": "keyword"
+        },
+        "confirmed_rolling_per_100k": {
+            "type": "float"
+        },
+        "dead_rolling_per_100k": {
+            "type": "float"
+        },
+        "recovered_rolling_per_100k": {
+            "type": "float"
+        },
+        "confirmed_per_100k": {
+            "type": "float"
+        },
+        "dead_per_100k": {
+            "type": "float"
+        },
+        "recovered_per_100k": {
+            "type": "float"
         }
     }
     return mapping
