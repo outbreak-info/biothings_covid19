@@ -12,7 +12,7 @@ def load_annotations(data_folder):
         items = json.load(f)
         f.close()
     for item in items:
-        item = dict([[k,v] for k,v in item.items() if v != None])
+        item = dict([[k,v] for k,v in item.items() if v != None and v != np.nan and v != float("nan")])
         for k,v in item.items():
             if type(v) == np.int64:
                 item[k] = int(v)
