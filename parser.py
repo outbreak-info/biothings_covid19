@@ -12,11 +12,10 @@ def load_annotations(data_folder):
         items = json.load(f)
         f.close()
     for item in items:
+        item = dict([[k,v] for k,v in item.items() if v != None])
         for k,v in item.items():
             if type(v) == np.int64:
                 item[k] = int(v)
             if type(v) == np.float64 or type(v) == np.float:
                 item[k] = float(v)
-            if v == np.nan or v == None:
-                del item[k]
         yield item
