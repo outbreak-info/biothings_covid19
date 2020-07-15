@@ -674,7 +674,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key+"_numIncrease"] = compute_num_increase(current_date)
         if current_date - timedelta(days = 1) in sorted_group_sum.index and sorted_group_sum[current_date - timedelta(days = 1)] > 0:
             item[api_key+"_pctIncrease"] = (sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)])/sorted_group_sum[current_date - timedelta(days = 1)]
-        if "population" in item:
+        if "population" in item and item["population"] > 0:
             per_capita_keys = [api_key, api_key+"_rolling", api_key+"_rolling_14days_ago", api_key+"_rolling_14days_ago_diff"]
             for per_capita_key in per_capita_keys:
                 if per_capita_key not in item:
@@ -765,8 +765,8 @@ def generate_state_item(ind_grp, grouped_sum):
             if pd.isna(grp[i].iloc[0]):
                 continue
             item[i] = grp[i].iloc[0]
-        pop = pd.isna(grp["computed_state_pop"].iloc[0])
-        if not pd.isna(pop):
+        pop = grp["computed_state_pop"].iloc[0]
+        if not pd.isna(pop) and pop > 0:
             item["population"] = pop
     # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
@@ -808,9 +808,9 @@ def generate_county_item(ind_grp, grouped_sum):
     }
     pop = grp["computed_county_pop"].iloc[0]
     state_pop = grp["computed_state_pop"].iloc[0]
-    if not pd.isna(pop):
+    if not pd.isna(pop) and pop > 0:
         item["population"] = pop
-    if not pd.isna(state_pop):
+    if not pd.isna(state_pop) and pop > 0:
         item["state_population"] = state_pop
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
@@ -891,7 +891,7 @@ def generate_metro_item(ind_grp, grouped_sum, metro):
         "wb_region": grp["computed_region_wb"].iloc[0]
     }
     pop = grp["computed_metro_pop"].iloc[0]
-    if not pd.isna(pop):
+    if not pd.isna(pop) and pop > 0:
         item["population"] = pop
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
