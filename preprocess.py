@@ -451,7 +451,7 @@ def populate_country(x):
 
 tmp = daily_df.apply(populate_country, axis =  1)
 for i in tmp.columns:
-    daily_df.loc[tmp.index, i] = tmp[i]	
+    daily_df.loc[tmp.index, i] = tmp[i]
 
 # US States set lat. For New York City and Kansas City, lat_lng already set
 print("Populating US States ... ")
@@ -470,7 +470,7 @@ def populate_state(x):
 
 tmp = us_states.apply(populate_state, axis= 1)
 for i in tmp.columns:
-    daily_df.loc[tmp.index, i] = tmp[i]	
+    daily_df.loc[tmp.index, i] = tmp[i]
 
 # Add testing data to states in US
 us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
@@ -501,7 +501,7 @@ def populate_non_us_state(x):
 
 tmp = non_us_states.apply(populate_non_us_state, axis= 1)
 for i in tmp.columns:
-    daily_df.loc[tmp.index, i] = tmp[i]	
+    daily_df.loc[tmp.index, i] = tmp[i]
 
 # Admin2
 print("Populating US counties ... ")
@@ -520,7 +520,7 @@ def populate_us_county(x):
 
 tmp = us_county_df.apply(populate_us_county, axis= 1)
 for i in tmp.columns:
-    daily_df.loc[tmp.index, i] = tmp[i]	
+    daily_df.loc[tmp.index, i] = tmp[i]
 
 # Add metropolitan areas
 print("Populating metropolitan areas ...")
@@ -539,7 +539,7 @@ def populate_us_metro(x):
 
 tmp = us_metro_df.apply(populate_us_metro, axis= 1)
 for i in tmp.columns:
-    daily_df.loc[tmp.index, i] = tmp[i]	
+    daily_df.loc[tmp.index, i] = tmp[i]
 
 # Add admin2 codes for cities: NYC and KC
 print("Populating cities (NYC + KC)")
@@ -765,7 +765,9 @@ def generate_state_item(ind_grp, grouped_sum):
             if pd.isna(grp[i].iloc[0]):
                 continue
             item[i] = grp[i].iloc[0]
-        item["population"] = grp["computed_state_pop"].iloc[0]
+        pop = pd.isna(grp["computed_state_pop"].iloc[0])
+        if not pd.isna(pop):
+            item["population"] = pop
     # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
@@ -794,8 +796,6 @@ def generate_county_item(ind_grp, grouped_sum):
         "country_iso3": grp["computed_country_iso3"].iloc[0],
         "lat": grp["Lat"].iloc[0],
         "long": grp["Long"].iloc[0],
-        "population": grp["computed_county_pop"].iloc[0],
-        "state_population": grp["computed_state_pop"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0]),
@@ -806,6 +806,12 @@ def generate_county_item(ind_grp, grouped_sum):
         "gdp_last_updated":grp["gdp_update_year"].iloc[0],
         "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
+    pop = grp["computed_county_pop"].iloc[0]
+    state_pop = grp["computed_state_pop"].iloc[0]
+    if not pd.isna(pop):
+        item["population"] = pop
+    if not pd.isna(state_pop):
+        item["state_population"] = state_pop
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
@@ -882,9 +888,11 @@ def generate_metro_item(ind_grp, grouped_sum, metro):
         "admin_level": 1.5,
         "country_name": grp["computed_country_name"].iloc[0],
         "sub_parts": get_metro_counties(grp["CBSA_Code"].iloc[0]),
-        "wb_region": grp["computed_region_wb"].iloc[0],
-        "population": grp["computed_metro_pop"].iloc[0]
+        "wb_region": grp["computed_region_wb"].iloc[0]
     }
+    pop = grp["computed_metro_pop"].iloc[0]
+    if not pd.isna(pop):
+        item["population"] = pop
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
