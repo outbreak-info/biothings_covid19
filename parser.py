@@ -17,6 +17,6 @@ def load_annotations(data_folder):
                 item[k] = int(v)
             if type(v) == np.float64 or type(v) == np.float:
                 item[k] = float(v)
-            if v == np.nan:
+            if v == np.nan or v == None:
                 del item[k]
         yield item
