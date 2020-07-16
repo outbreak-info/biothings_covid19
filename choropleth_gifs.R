@@ -114,6 +114,9 @@ processVariable = function(map, df, location, variable, numColors, returnAll = F
     } else {
       return(domain)
     }
+    
+    # Create the gifs
+    # createGif(maps)
   }
 }
 
