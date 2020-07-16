@@ -16,13 +16,16 @@ INPUT_DIR = "Documents/2019-nCoV/data/epi/" # location where the Epidemiology .c
 OUTPUT_DIR = "Documents/2019-nCoV/data/epi/" # location where the .gifs are saved
 
 # define variables to loop over
-EPI_VARS = c("confirmed_rolling",	"dead_rolling",	"confirmed_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff")
+EPI_VARS = c("confirmed_rolling", "confirmed_rolling_per_100k", "confirmed_rolling_14days_ago_diff", "confirmed_rolling_14days_ago_diff_per_100k", "dead_rolling", "dead_rolling_per_100k", "dead_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff_per_100k")
 
 # define geographic regions to loop over
 GEO_CONSTANTS = tribble(
   ~id, ~epi_file, ~map_file, ~proj4, 
+  # Note: Equal earth projection requires Proj6 in GDAL (https://github.com/OSGeo/gdal/issues/870)
+  # "admin0", "test_admin0.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/countries.json", "+proj=eqearth", 
+  "admin0", "test_admin0.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/countries.json", "+proj=robin", 
   "US_states", "test_states.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_states.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs",
-  # "US_states", "test_states.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_states.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs",
+  "US_metros", "test_metros.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_metro.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs",
   "US_counties", "test_counties.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_counties.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 )
 
@@ -50,12 +53,33 @@ generateGifs = function(numColors = 9) {
 processLocation = function(epi_file, map_file, proj4, id, numColors) {
   map = cleanMap(map_file, proj4, id)
   
-  df = read_csv(str_c(INPUT_DIR, epi_file), col_types = cols(date = col_date(format = "%Y-%m-%d")))
+  df = readData(epi_file)
   
   # loop over variables
-  breaks = sapply(EPI_VARS, function(x) processVariable(map, df, id, x, numColors))
-  breaks_df = tibble(variable = names(breaks), breaks = breaks)
-  return(breaks_df)
+  if(!is.na(df)) {
+    breaks = sapply(EPI_VARS, function(x) processVariable(map, df, id, x, numColors))
+    breaks_df = tibble(variable = names(breaks), breaks = breaks)
+    return(breaks_df)
+  }
+}
+
+readData = function(epi_file) {
+  out <- tryCatch(
+    {
+      read_csv(str_c(INPUT_DIR, epi_file), col_types = cols(date = col_date(format = "%Y-%m-%d")))
+    },
+    error=function(cond) {
+      message(paste("File does not exist:", INPUT_DIR, epi_file))
+      message("Skipping this file \n")
+      return(NA)
+    },
+    warning=function(cond) {
+      return(NULL)
+    },
+    finally={
+    }
+  )    
+  return(out)
 }
 
 
@@ -66,28 +90,30 @@ processVariable = function(map, df, location, variable, numColors, returnAll = F
   # Classify the breaks
   domain = calcBreaks(df, variable, numColors)
   
-  break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower)%>% filter(!is.na(midpt))
-  
-  
-  df = df %>% mutate(ids = str_split(location_id, "_")) %>% 
-    rowwise() %>% 
-    mutate(GEOID = str_replace(ids[[2]], "US-", ""),
-           fill = cut(.data[[variable]], domain))
-  
-  counts = df %>% 
-    group_by(date) %>% 
-    filter(!is.na(.data[[variable]])) %>% 
-    do(h = calcHist(.data[[variable]], breaks = domain)) %>% 
-    unnest(cols = c(h)) %>% 
-    mutate(fill = cut(midpt, domain))
-  
-  counts = counts %>% left_join(break_limits, by = "midpt")
-  
-  maps = map %>% left_join(df, by="GEOID")
-  if(returnAll) {
-    return(list(maps = maps, blank_map = map, breaks = domain, hist = counts))
-  } else {
-    return(domain)
+  if(!is.na(domain)){
+    break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower)%>% filter(!is.na(midpt))
+    
+    
+    df = df %>% mutate(ids = str_split(location_id, "_")) %>% 
+      rowwise() %>% 
+      mutate(GEOID = str_replace(ids[[2]], "US-", ""),
+             fill = cut(.data[[variable]], domain))
+    
+    counts = df %>% 
+      group_by(date) %>% 
+      filter(!is.na(.data[[variable]])) %>% 
+      do(h = calcHist(.data[[variable]], breaks = domain)) %>% 
+      unnest(cols = c(h)) %>% 
+      mutate(fill = cut(midpt, domain))
+    
+    counts = counts %>% left_join(break_limits, by = "midpt")
+    
+    maps = map %>% left_join(df, by="GEOID")
+    if(returnAll) {
+      return(list(maps = maps, blank_map = map, breaks = domain, hist = counts))
+    } else {
+      return(domain)
+    }
   }
 }
 
@@ -96,35 +122,40 @@ processVariable = function(map, df, location, variable, numColors, returnAll = F
 
 # calcBreaks --------------------------------------------------------------
 calcBreaks = function(df, variable, numColors, style="fisher") {
-  values = df %>% pull(variable)
-  breaks = classIntervals(values, numColors, style=style)
-  
-  
-  if(str_detect(variable, "_diff")) {
-    # Ensure the breaks are centered at 0 if it's a difference
-    midpoint = which((breaks$brks < 0 & breaks$brks %>% lead() > 0) | breaks$brks == 0)
+  if(variable %in% colnames(df)) {
+    values = df %>% pull(variable)
+    breaks = classIntervals(values, numColors, style=style)
     
-    padLength = length(breaks$brks) - 2 * midpoint; # changes from JS code, since .js 0-indexes, while R is 1-based.
-    domain = breaks$brks
     
-    # ensure that the padding is an even number, so the limits all apply
-    if(padLength %% 2) {
-      padLength = padLength + 1
+    if(str_detect(variable, "_diff")) {
+      # Ensure the breaks are centered at 0 if it's a difference
+      midpoint = which((breaks$brks < 0 & breaks$brks %>% lead() > 0) | breaks$brks == 0)
+      
+      padLength = length(breaks$brks) - 2 * midpoint; # changes from JS code, since .js 0-indexes, while R is 1-based.
+      domain = breaks$brks
+      
+      # ensure that the padding is an even number, so the limits all apply
+      if(padLength %% 2) {
+        padLength = padLength + 1
+      }
+      
+      if(padLength < 0) {
+        maxVal = max(domain)
+        domain = c(domain, rep(maxVal, -1*padLength) + seq(1, by=1, length.out=-1*padLength))
+      } 
+      if(padLength > 0 ) {
+        minVal = min(domain)
+        domain = c(rep(minVal, padLength)+ seq(1, by=1, length.out=padLength), domain)
+      }
+    } else {
+      domain = breaks$brks
     }
     
-    if(padLength < 0) {
-      maxVal = max(domain)
-      domain = c(domain, rep(maxVal, -1*padLength) + seq(1, by=1, length.out=-1*padLength))
-    } 
-    if(padLength > 0 ) {
-      minVal = min(domain)
-      domain = c(rep(minVal, padLength)+ seq(1, by=1, length.out=padLength), domain)
-    }
+    return(sort(domain)) 
   } else {
-    domain = breaks$brks
+    print(str_c("WARNING: variable ", variable, "is not found. Skipping calculating breaks"))
+    return(NA)
   }
-  
-  return(sort(domain))
 }
 
 
