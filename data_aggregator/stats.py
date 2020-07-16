@@ -69,8 +69,16 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         item[api_key+"_firstDate"] = first_date[key].strftime("%Y-%m-%d") if first_date[key] != "" else ""
         item[api_key+"_newToday"] = True if len(sorted_group_sum) > 1 and sorted_group_sum.iloc[-1] - sorted_group_sum.iloc[-2] > 0 else False
         item[api_key+"_numIncrease"] = compute_num_increase(current_date)
+
         if current_date - timedelta(days = 1) in sorted_group_sum.index and sorted_group_sum[current_date - timedelta(days = 1)] > 0:
             item[api_key+"_pctIncrease"] = (sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)])/sorted_group_sum[current_date - timedelta(days = 1)]
+
+        if "population" in item and item["population"] > 0:
+            per_capita_keys = [api_key, api_key+"_rolling", api_key+"_rolling_14days_ago", api_key+"_rolling_14days_ago_diff"]
+            for per_capita_key in per_capita_keys:
+                if per_capita_key not in item:
+                    continue
+                item[per_capita_key+"_per_100k"] = (item[per_capita_key]/item["population"]) * 100000
     if first_date["Confirmed"] != "" and first_date["Deaths"] != "":
         item["first_dead-first_confirmed"] = (first_date["Deaths"] - first_date["Confirmed"]).days
     # daysSince100Cases
@@ -147,6 +155,9 @@ def generate_state_item(ind_grp, grouped_sum, testing_columns):
             if pd.isna(grp[i].iloc[0]):
                 continue
             item[i] = grp[i].iloc[0]
+        pop = grp["computed_state_pop"].iloc[0]
+        if not pd.isna(pop) and pop > 0:
+            item["population"] = pop
             # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
@@ -174,6 +185,12 @@ def generate_county_item(ind_grp, grouped_sum):
         "gdp_last_updated":grp["gdp_update_year"].iloc[0],
         "country_gdp_per_capita":grp["country_gdp"].iloc[0]
     }
+    pop = grp["computed_county_pop"].iloc[0]
+    state_pop = grp["computed_state_pop"].iloc[0]
+    if not pd.isna(pop) and pop > 0:
+        item["population"] = pop
+    if not pd.isna(state_pop) and pop > 0:
+        item["state_population"] = state_pop
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
@@ -209,6 +226,9 @@ def generate_metro_item(ind_grp, grouped_sum, metro):
         "sub_parts": get_metro_counties(grp["CBSA_Code"].iloc[0]),
         "wb_region": grp["computed_region_wb"].iloc[0]
     }
+    pop = grp["computed_metro_pop"].iloc[0]
+    if not pd.isna(pop) and pop > 0:
+        item["population"] = pop
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
@@ -223,7 +243,7 @@ def get_us_testing_data(admn1_shp):
         return us_testing
     testing = resp.json()
     for feat in us_states:
-        state_tests = [i for i in testing if i["state"] == feat["properties"]["iso_3166_2"][-2:]]
+        state_tests = [i for i in testing if i["state"] == feat["properties"]["i_3166_"][-2:]]
         if len(state_tests) > 0:
             for state_test in state_tests:
                 d = {}
@@ -237,8 +257,67 @@ def get_us_testing_data(admn1_shp):
                     if k  == "date":
                         current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
                     d[k] = v
-                us_testing[current_date + "_" + feat["properties"]["iso_3166_2"]] = copy.deepcopy(d)
+                us_testing[current_date + "_" + feat["properties"]["i_3166_"]] = copy.deepcopy(d)
         else:
-            logging.warning("No testing data for US State: {}".format(feat["properties"]["iso_3166_2"]))
+            logging.warning("No testing data for US State: {}".format(feat["properties"]["iso_3166_"]))
     return us_testing
 
+def populate_country(x):
+    country_attr = {
+        "computed_country_name": "NAME",
+        "computed_country_pop": "POP_EST",
+        "computed_country_iso3": "ADM0_A3"
+    }
+    centroid = get_centroid(usa_country_feat["geometry"]) if x["Country_Region"] == "USA_NYT" else get_centroid(country_feats[(x["Lat"], x["Long"])]["geometry"])
+    get_val = lambda x,v: usa_country_feat["properties"][v] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"][v]
+    attr = dict([[k, get_val(x,v)] for k,v in country_attr.items()])
+    attr.update({
+        "computed_region_wb": country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"] + ": China" if x["computed_country_iso3"] == "CHN" else usa_country_feat["properties"]["REGION_WB"] if x["Country_Region"] == "USA_NYT" else country_feats[(x["Lat"], x["Long"])]["properties"]["REGION_WB"],
+        "computed_country_long": centroid[0],
+        "computed_country_lat": centroid[1]
+    })
+    return pd.Series(attr)
+
+def populate_state(x):
+    centroid = get_centroid(us_state_feats[x["fips"][:2]]["geometry"])
+    attr = {
+        "computed_state_long": centroid[0],
+        "computed_state_lat": centroid[1],
+        "computed_state_name": us_state_feats[x["fips"][:2]]["properties"]["name"],
+        "computed_state_iso3": us_state_feats[x["fips"][:2]]["properties"]["i_3166_"],
+        "computed_state_pop": us_state_feats[x["fips"][:2]]["properties"]["POPESTI"]
+    }
+    return pd.Series(attr)
+
+def populate_non_us_state(x):
+    cetroid = get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"])
+    attr = {
+        "computed_state_long": centroid[0],
+        "computed_state_lat": centroid[1],
+        "computed_state_name": state_feats[(x["Lat"], x["Long"])]["properties"]["name"],
+        "computed_state_iso3": state_feats[(x["Lat"], x["Long"])]["properties"]["i_3166_"]
+    }
+    return pd.Series(attr)
+
+
+def populate_us_county(x):
+    cetroid = get_centroid(usa_admn2_feats[x["fips"]]["geometry"])
+    attr = {
+        "computed_county_long": centroid[0],
+        "computed_county_lat": centroid[1],
+        "computed_county_name": usa_admn2_feats[x["fips"]]["properties"]["NAMELSA"],
+        "computed_county_iso3": usa_admn2_feats[x["fips"]]["properties"]["STATEFP"] + usa_admn2_feats[x["fips"]]["properties"]["COUNTYF"],
+        "computed_county_pop": usa_admn2_feats[x["fips"]]["properties"]["POPESTI"]
+    }
+    return pd.Series(attr)
+
+def populate_us_metro(x):
+    centroid = get_centroid(metro_feats[x["CBSA_Code"]]["geometry"]) if metro_feats[x["CBSA_Code"]] != None else [None, None]
+    attr = {
+        "computed_metro_long": centroid[0],
+        "computed_metro_lat": centroid[1],
+        "computed_metro_cbsa": metro_feats[x["CBSA_Code"]]["properties"]["CBSAFP"] if metro_feats[x["CBSA_Code"]] != None else None,
+        "computed_metro_name": metro_feats[x["CBSA_Code"]]["properties"]["NAME"] if metro_feats[x["CBSA_Code"]] != None else None,
+        "computed_metro_pop": metro_feats[x["CBSA_Code"]]["properties"]["POPESTI"] if metro_feats[x["CBSA_Code"]] != None else None
+    }
+    return pd.Series(attr)

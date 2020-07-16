@@ -57,8 +57,62 @@ def add_lat_long(daily_df, key, key_null = None):
 
 
 def get_us_admn2_feat(fips, shp):
-    feats = [i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYFP"]) == fips]
+    feats = [i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYF"]) == fips]
     if len(feats) == 0:
         logging.info("NYT Data doesn't have matching for county with fips {}".format(fips))
         return None
     return feats[0]
+
+def fix_daily_reports(daily_df, admn0_shp)
+    # Correct wrong lat_lng longs. Check if name matches shapefile nad populate list below.
+    wrong_lat_long = ["Belize", "Malaysia"]
+    for cntry in wrong_lat_long:
+        # Check if only country_feat has admin1 or admin2.
+        n_admin_lower = daily_df[daily_df["Country_Region"] == cntry][["Province_State"]].dropna().shape[0] + daily_df[daily_df["Country_Region"] == cntry][["Admin2"]].dropna().shape[0]
+        if n_admin_lower > 0:
+            logging.warning("{} has admin 1 or 2. Verify if centroid of country is correct lat long!")
+        feat = [i for i in admn0_shp if i["properties"]["NAME"] == cntry][0]
+        centroid = get_centroid(feat["geometry"])
+        daily_df.loc[daily_df["Country_Region"] == cntry, "Long"] = centroid[0]
+        daily_df.loc[daily_df["Country_Region"] == cntry, "Lat"] = centroid[1]
+
+    # Remove rows with 0 confirmed, deaths and recoveries
+    daily_df = daily_df[daily_df.apply(lambda x: x["Confirmed"] + x["Recovered"] +x["Deaths"], axis = 1) != 0]
+
+    # Remove lat, long for cruises
+    for w in ["diamond princess", "grand princess", "cruise", "ship"]:
+        daily_df.loc[daily_df["Country_Region"].str.lower().str.contains(w, na= False), "Lat"] = 91  # Add +91 for cruises
+        daily_df.loc[daily_df["Country_Region"].str.lower().str.contains(w, na= False), "Long"] = 181
+        daily_df.loc[daily_df["Province_State"].str.lower().str.contains(w, na= False), "Lat"] = 91  # Add +91 for cruises
+        daily_df.loc[daily_df["Province_State"].str.lower().str.contains(w, na= False), "Long"] = 181
+
+    # First get lat_long long for state and then for country
+    add_lat_long(daily_df, "Province_State", "Admin2")
+    add_lat_long(daily_df, "Admin2")
+    add_lat_long(daily_df, "Country_Region", ["Province_State", "Admin2"])
+
+    # Remove nan lat long : cruises mostly
+    unknown = daily_df[daily_df["Lat"].isna()]
+    logging.warning("Unknown lat longs for {} rows".format(unknown.shape[0]))
+    unknown_confirmed = unknown.sort_values("date", ascending = False).groupby("Province_State").head(1)["Confirmed"].sum()
+    logging.warning("Unaccounted cases due to missing lat long: {}".format(unknown_confirmed))
+    logging.info("\n".join(daily_df[daily_df["Lat"].isna()]["Country_Region"].unique()))
+    daily_df = daily_df[~daily_df["Lat"].isna()]
+
+    # Set lat long to the most frequent used values. To deal with cases like French Polynesia
+    for i, grp in daily_df[daily_df["Province_State"].isna() & daily_df["Admin2"].isna()].groupby("Country_Region"):
+        daily_df.loc[(daily_df["Country_Region"] == i) & daily_df["Province_State"].isna() & daily_df["Admin2"].isna(), "Lat"] = grp["Lat"].dropna().mode().values[0]
+        daily_df.loc[(daily_df["Country_Region"] == i) & daily_df["Province_State"].isna() & daily_df["Admin2"].isna(), "Long"] = grp["Long"].dropna().mode().values[0]
+
+    for i, grp in daily_df[daily_df["Admin2"].isna()].groupby(["Country_Region", "Province_State"]):
+        daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & daily_df["Admin2"].isna(), "Lat"] = grp["Lat"].dropna().mode().values[0]
+        daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & daily_df["Admin2"].isna(), "Long"] = grp["Long"].dropna().mode().values[0]
+
+    for i, grp in daily_df.groupby(["Country_Region", "Province_State", "Admin2"]):
+        daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & (daily_df["Admin2"] == i[2]), "Lat"] = grp["Lat"].dropna().mode().values[0]
+        daily_df.loc[(daily_df["Country_Region"] == i[0]) & (daily_df["Province_State"] == i[1]) & (daily_df["Admin2"] == i[2]), "Long"] = grp["Long"].dropna().mode().values[0]
+
+    # Round Lat Long to 4 decimal places
+    daily_df["Lat"] = daily_df["Lat"].round(6)
+    daily_df["Long"] = daily_df["Long"].round(6)
+
