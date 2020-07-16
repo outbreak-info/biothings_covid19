@@ -94,14 +94,15 @@ processVariable = function(map, df, location, variable, numColors, returnAll = F
     break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower)%>% filter(!is.na(midpt))
     
     
-    df = df %>% mutate(ids = str_split(location_id, "_")) %>% 
+    df = df %>% 
+      filter(!is.na(.data[[variable]])) %>% 
+      mutate(ids = str_split(location_id, "_")) %>% 
       rowwise() %>% 
       mutate(GEOID = str_replace(ids[[2]], "US-", ""),
              fill = cut(.data[[variable]], domain))
     
     counts = df %>% 
       group_by(date) %>% 
-      filter(!is.na(.data[[variable]])) %>% 
       do(h = calcHist(.data[[variable]], breaks = domain)) %>% 
       unnest(cols = c(h)) %>% 
       mutate(fill = cut(midpt, domain))
@@ -207,23 +208,28 @@ calcHist = function(values, breaks) {
 
 # createGif ---------------------------------------------------------------
 createGif = function(maps) {
+  colorPalette = colorRampPalette(c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"),
+                                  space="Lab")(length(maps$breaks) - 1)
+  num_frames = length(unique(maps$hist$date))
+  if(length(unique(maps$maps$date)) != num_frames) {
+    error("Mismatch in number of frames between histogram legend and map")
+  }
+  
   
   # DC screws things up, since it has no polygon; filter out places without geoms
-  p1 =
+  p_map =
     ggplot(maps$maps %>% filter(!st_is_empty(geometry))) +
     geom_sf(size = 0.2, data = maps$blank_map, fill = NA) +
     geom_sf(size = 0.2, aes(fill = fill, group=date)) + 
     # scale_fill_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), limits=range(maps$breaks), breaks=maps$breaks[1:11], na.value = "white", show.limits=T, guide="colourbar") +
     scale_fill_manual(values=colorPalette, breaks = levels(maps$fill), na.value = "white", drop=FALSE) +
-    labs(title = "{frame_time}") +
+    labs(title = "{format(frame_time, '%d %B %Y')}") +
     theme_void() +
-    # #   theme(legend.position = "none") +
+    theme(legend.position = "none", plot.title = element_text(size=18, hjust = 0.5)) +
     transition_time(date)
   
   barWidth = min(maps$hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
-  colorPalette = colorRampPalette(c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"),
-                                  space="Lab")(length(maps$breaks) - 1)
-  p2 =
+  p_legend =
     ggplot(maps$hist, aes(xmin=midpt - barWidth, xmax = midpt+ barWidth, ymin=0, ymax=count, fill=fill)) +
     geom_rect(colour = "#2c3e50", size = 0.2) +
     scale_fill_manual(values=colorPalette, breaks = levels(maps$hist$fill), na.value = "white", drop=FALSE) +
@@ -231,33 +237,25 @@ createGif = function(maps) {
     geom_rect(aes(ymin = -2.5, ymax=-1, xmin = lower, xmax = upper, fill = fill)) +
     geom_text(aes(y=-2.5, x=lower, label=round(lower)), nudge_y = -1) +
     labs(title = "{current_frame}") +
-    ease_aes('sine-in-out') +
-    transition_manual(date)
+    # ease_aes('sine-in-out') +
+    transition_time(date)
   
+  fps=2
   
-  a_gif = animate(p1, fps=2, renderer = gifski_renderer(), end_pause = 20, width = 500, height=350)
-  b_gif = animate(p2, fps=2, detail= 2, nframes = length(unique(maps$hist$date)), renderer = gifski_renderer(), end_pause = 20)
-  a_mgif <- image_read(a_gif)
-  b_mgif <- image_read(b_gif)
+  map_gif = animate(p_map, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 500, height=350)
+  legend_gif = animate(p_legend, fps=fps, nframes = num_frames, renderer = magick_renderer())
   
-  new_gif <- image_append(c(b_mgif[1], c_mgif[1]), stack=T )
-  for(i in 2:100){
-    combined <- image_append(c(b_mgif[i], c_mgif[i]), stack=T)
-    new_gif <- c(new_gif, combined)
+  if(length(map_gif) != length(legend_gif)) {
+    error("Mismatch in number of frames between histogram legend and map")
   }
   
-  # new_gif
+  combined_gif <- image_append(c(map_gif[1], legend_gif[1]), stack=FALSE)
+  for(i in 2:num_frames){
+    combined <- image_append(c(map_gif[i], legend_gif[i]), stack=FALSE)
+    combined_gif <- c(combined_gif, combined)
+  }
   
-  map_anim2 = animate(p2, fps=2, renderer = gifski_renderer(), end_pause = 20)
-  # image_animate(map_anim2, "test.gif", fps=2)
-  
-  
-  ggplot(mpg, aes(x = displ, y = hwy, colour = hwy)) + 
-    geom_point(size = 3) + 
-    scale_colour_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), 
-                        breaks=seq(-2.5, 50, by = 5), 
-                        limits = c(-5,50),
-                        guide="legend")
+  image_write(combined_gif, "tester.gif")
   
   total = st_drop_geometry(maps$maps) %>% group_by(date) %>% summarise(total = sum(.data[[variable]], na.rm=TRUE))
   
@@ -277,9 +275,9 @@ createGif = function(maps) {
     theme(text = element_text(size=20), axis.title = element_blank(), title = element_text(size = 16)) +
     ease_aes('sine-in-out') +
     transition_reveal(date)
-  x = animate(p4, fps=5, nframes = length(unique(maps$hist$date)), renderer = gifski_renderer(), end_pause = 20, width = 700, height = 500)
-  anim_save("US_confirmed_rolling_diff.gif", x)
-  # anim_save("US_dead_rolling_diff.gif", x)
+  x = animate(p4, fps=5, nframes = num_frames), renderer = gifski_renderer(), end_pause = 20, width = 700, height = 500)
+anim_save("US_confirmed_rolling_diff.gif", x)
+# anim_save("US_dead_rolling_diff.gif", x)
 }
 
 # invoke the function -----------------------------------------------------
