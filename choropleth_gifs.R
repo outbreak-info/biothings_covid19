@@ -7,7 +7,6 @@ library(jsonlite)
 library(sf)
 library(ggplot2)
 library(gganimate)
-# library(gifski)
 library(magick)
 
 
@@ -37,7 +36,7 @@ generateGifs = function(numColors = 9, exportGif = TRUE) {
     rowwise() %>%
     mutate(breaks = list(processLocation(epi_file, map_file, proj4, id, numColors, exportGif)))
   location_df = locations %>% select(id, breaks) %>% unnest(cols = c(breaks))
-  return(jsonlite::toJSON(location_df))
+  return(toJSON(location_df))
 }
 
 
@@ -80,7 +79,7 @@ readData = function(epi_file) {
 
 # processVariable ---------------------------------------------------------
 # Main workhorse to calculate the breaks, histograms, and generate the gifs
-processVariable = function(epi_file, map_file, proj4, location, variable, numColors, exportGif = TRUE, returnAll = FALSE) {
+processVariable = function(epi_file, map_file, proj4, location, variable, numColors, maxN = 25000, exportGif = TRUE, returnJson = FALSE, returnAll = FALSE) {
   print(str_c("processing variable ", variable, " for location ", location))
   
   map = cleanMap(map_file, proj4, location)
@@ -88,7 +87,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
   df = readData(epi_file)
   
   # Classify the breaks
-  domain = calcBreaks(df, variable, numColors)
+  domain = calcBreaks(df, variable, numColors, maxN)
   
   if(!is.na(domain)){
     break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower) %>% 
@@ -99,7 +98,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
       filter(!is.na(.data[[variable]])) %>% 
       mutate(ids = str_split(location_id, "_")) %>% 
       rowwise() %>% 
-      mutate(GEOID = str_replace(ids[[2]], "US-", ""),
+      mutate(GEOID = str_replace(ids %>% last(), "US-", ""),
              fill = cut(.data[[variable]], domain))
     
     counts = df %>% 
@@ -110,7 +109,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
     
     counts = counts %>% left_join(break_limits, by = "midpt")
     
-    maps = map %>% left_join(df, by="GEOID")
+    maps = map %>% inner_join(df, by="GEOID")
     
     # Create the gifs
     if(exportGif) {
@@ -120,6 +119,9 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
     if(returnAll) {
       return(list(maps = maps, blank_map = map, breaks = domain, hist = counts))
     } else {
+      if(returnJson) {
+        return(toJSON(tibble(!!(paste0(variable, "_breaks")) := list(domain))))
+      }
       return(tibble(!!(paste0(variable, "_breaks")) := list(domain)))
     }
   }
@@ -129,11 +131,22 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
 
 
 # calcBreaks --------------------------------------------------------------
-calcBreaks = function(df, variable, numColors, style="fisher") {
+calcBreaks = function(df, variable, numColors, maxN = 25000, style="fisher") {
+  # Maximum value to sample to calculate breaks.
+  # Necessary because a classification of 280,000 elements is insanely slow.
+  # from classInt: "default 3000L, the QGIS sampling threshold; over 3000, the observations presented to "fisher" and "jenks" are either a samp_prop= sample or a sample of 3000, whichever is larger"
+  # Doing this manually, since this MAY exclude the min/max values, AND the larger of 10% of 280,000 is REALLY slow (I assume classInt is doing some sort of sampling + replacement), and unclear if there are benefits to getting the precise breaks
+  
+  set.seed(25)
   if(variable %in% colnames(df)) {
-    values = df %>% pull(variable)
-    breaks = classIntervals(values, numColors, style=style, samp_prop = 1, warnLargeN = FALSE)
+    values = df %>% filter(!is.na(.data[[variable]])) %>% pull(variable) 
+    # Manual sampling of the data so things don't blow up too much.
+    # making sure to add the max and min value
+    if(length(values) > maxN) {
+      values = c(min(values), max(values), values[values != max(values) & values != min(values)] %>% sample(maxN))
+    }
     
+    breaks = classIntervals(values, numColors, style=style, warnLargeN = FALSE)
     
     if(str_detect(variable, "_diff")) {
       # Ensure the breaks are centered at 0 if it's a difference
@@ -239,7 +252,7 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   # Check the histogram and map have the same number of frames
   num_frames = length(unique(hist$date))
   if(length(unique(maps$date)) != num_frames) {
-    error("Mismatch in number of frames between histogram legend and map")
+    stop("Mismatch in number of frames between histogram legend and map")
   }
   # --- MAP ---  
   # DC screws things up, since it has no polygon; filter out places without geoms
@@ -341,6 +354,6 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
 }
 
 # invoke the function -----------------------------------------------------
-breaks = generateGifs(exportGif = FALSE)
-# Can also be run individually, returning a dataframe
-breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, FALSE)
+# breaks = generateGifs()
+# Can also be run individually, returning a dataframe or JSON
+breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T, returnAll=F)
