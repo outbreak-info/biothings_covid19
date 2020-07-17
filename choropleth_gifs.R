@@ -24,18 +24,18 @@ GEO_CONSTANTS = tribble(
   # Note: Equal earth projection requires Proj6 in GDAL (https://github.com/OSGeo/gdal/issues/870)
   # "admin0", "test_admin0.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/countries.json", "+proj=eqearth", 
   "admin0", "test_admin0.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/countries.json", "+proj=robin", 
-  # "US_states", "test_states.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_states.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs",
+  "US_states", "test_states.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_states.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs",
   "US_metros", "test_metros.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_metro.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs",
   "US_counties", "test_counties.csv", "https://raw.githubusercontent.com/SuLab/outbreak.info/master/web/src/assets/geo/US_counties.json", "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 )
 
 
 # main function -----------------------------------------------------------
-generateGifs = function(numColors = 9) {
+generateGifs = function(numColors = 9, exportGif = TRUE) {
   # loop over locations
   locations = GEO_CONSTANTS %>% 
     rowwise() %>%
-    mutate(breaks = list(processLocation(epi_file, map_file, proj4, id, numColors)))
+    mutate(breaks = list(processLocation(epi_file, map_file, proj4, id, numColors, exportGif)))
   location_df = locations %>% select(id, breaks) %>% unnest(cols = c(breaks))
   return(jsonlite::toJSON(location_df))
 }
@@ -45,20 +45,15 @@ generateGifs = function(numColors = 9) {
 # 1. loads in the geographic shapefiles; transforms to correct projection, etc.
 # 2. loads in the epidemiology data for that location
 # 3. For each variable:
-#     • calculates Fisher breaks for the color ramp
-#     • calculates a histogram based on those breaks
-#     • merges data with the geographic shape file
+#     • calculates Fisher breaks for the color ramp
+#     • calculates a histogram based on those breaks
+#     • merges data with the geographic shape file
 #     • generates and saves a .gif for each
-
-processLocation = function(epi_file, map_file, proj4, id, numColors) {
-  map = cleanMap(map_file, proj4, id)
-  
-  df = readData(epi_file)
-  
+processLocation = function(epi_file, map_file, proj4, location, numColors, exportGif = TRUE) {
   # loop over variables
   if(!is.na(df)) {
-    breaks = sapply(EPI_VARS, function(x) processVariable(map, df, id, x, numColors))
-    breaks_df = tibble(variable = names(breaks), breaks = breaks)
+    breaks = lapply(EPI_VARS, function(variable) processVariable(epi_file, map_file, proj4, location, variable, numColors, exportGif))
+    breaks_df = breaks %>% bind_cols() %>% mutate(location = location)
     return(breaks_df)
   }
 }
@@ -85,8 +80,13 @@ readData = function(epi_file) {
 
 # processVariable ---------------------------------------------------------
 # Main workhorse to calculate the breaks, histograms, and generate the gifs
-processVariable = function(map, df, location, variable, numColors, returnAll = FALSE) {
+processVariable = function(epi_file, map_file, proj4, location, variable, numColors, exportGif = TRUE, returnAll = FALSE) {
   print(str_c("processing variable ", variable, " for location ", location))
+  
+  map = cleanMap(map_file, proj4, location)
+  
+  df = readData(epi_file)
+  
   # Classify the breaks
   domain = calcBreaks(df, variable, numColors)
   
@@ -113,12 +113,14 @@ processVariable = function(map, df, location, variable, numColors, returnAll = F
     maps = map %>% left_join(df, by="GEOID")
     
     # Create the gifs
-    createGif(maps, map, domain, counts, variable, location)
+    if(exportGif) {
+      createGif(maps, map, domain, counts, variable, location)
+    }
     
     if(returnAll) {
       return(list(maps = maps, blank_map = map, breaks = domain, hist = counts))
     } else {
-      return(domain)
+      return(tibble(!!(paste0(variable, "_breaks")) := list(domain)))
     }
   }
 }
@@ -159,7 +161,7 @@ calcBreaks = function(df, variable, numColors, style="fisher") {
     
     return(sort(domain)) 
   } else {
-    print(str_c("WARNING: variable ", variable, " is not found. Skipping calculating breaks"))
+    print(str_c("    WARNING: variable ", variable, " is not found. Skipping calculating breaks"))
     return(NA)
   }
 }
@@ -339,4 +341,6 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
 }
 
 # invoke the function -----------------------------------------------------
-breaks = generateGifs()
+breaks = generateGifs(exportGif = FALSE)
+# Can also be run individually, returning a dataframe
+breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, FALSE)
