@@ -7,7 +7,6 @@ library(jsonlite)
 library(sf)
 library(ggplot2)
 library(gganimate)
-library(gifski)
 library(magick)
 
 
@@ -16,7 +15,7 @@ INPUT_DIR = "Documents/2019-nCoV/data/epi/" # location where the Epidemiology .c
 OUTPUT_DIR = "Documents/2019-nCoV/data/epi/" # location where the .gifs are saved
 
 # define variables to loop over
-EPI_VARS = c("confirmed_rolling", "confirmed_rolling_per_100k", "confirmed_rolling_14days_ago_diff", "confirmed_rolling_14days_ago_diff_per_100k", "dead_rolling", "dead_rolling_per_100k", "dead_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff_per_100k")
+EPI_VARS = c("confirmed_per_100k", "confirmed_rolling", "confirmed_rolling_per_100k", "confirmed_rolling_14days_ago_diff", "confirmed_rolling_14days_ago_diff_per_100k", "dead_per_100k", "dead_rolling", "dead_rolling_per_100k", "dead_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff_per_100k")
 
 # define geographic regions to loop over
 GEO_CONSTANTS = tribble(
@@ -31,13 +30,13 @@ GEO_CONSTANTS = tribble(
 
 
 # main function -----------------------------------------------------------
-generateGifs = function(numColors = 9) {
+generateGifs = function(numColors = 9, exportGif = TRUE) {
   # loop over locations
   locations = GEO_CONSTANTS %>% 
     rowwise() %>%
-    mutate(breaks = list(processLocation(epi_file, map_file, proj4, id, numColors)))
+    mutate(breaks = list(processLocation(epi_file, map_file, proj4, id, numColors, exportGif)))
   location_df = locations %>% select(id, breaks) %>% unnest(cols = c(breaks))
-  return(jsonlite::toJSON(location_df))
+  return(toJSON(location_df))
 }
 
 
@@ -45,20 +44,15 @@ generateGifs = function(numColors = 9) {
 # 1. loads in the geographic shapefiles; transforms to correct projection, etc.
 # 2. loads in the epidemiology data for that location
 # 3. For each variable:
-#     • calculates Fisher breaks for the color ramp
-#     • calculates a histogram based on those breaks
-#     • merges data with the geographic shape file
+#     • calculates Fisher breaks for the color ramp
+#     • calculates a histogram based on those breaks
+#     • merges data with the geographic shape file
 #     • generates and saves a .gif for each
-
-processLocation = function(epi_file, map_file, proj4, id, numColors) {
-  map = cleanMap(map_file, proj4, id)
-  
-  df = readData(epi_file)
-  
+processLocation = function(epi_file, map_file, proj4, location, numColors, exportGif = TRUE) {
   # loop over variables
   if(!is.na(df)) {
-    breaks = sapply(EPI_VARS, function(x) processVariable(map, df, id, x, numColors))
-    breaks_df = tibble(variable = names(breaks), breaks = breaks)
+    breaks = lapply(EPI_VARS, function(variable) processVariable(epi_file, map_file, proj4, location, variable, numColors, exportGif))
+    breaks_df = breaks %>% bind_cols() %>% mutate(location = location)
     return(breaks_df)
   }
 }
@@ -85,38 +79,51 @@ readData = function(epi_file) {
 
 # processVariable ---------------------------------------------------------
 # Main workhorse to calculate the breaks, histograms, and generate the gifs
-processVariable = function(map, df, location, variable, numColors, returnAll = FALSE) {
+processVariable = function(epi_file, map_file, proj4, location, variable, numColors, maxN = 25000, exportGif = TRUE, returnJson = FALSE, returnAll = FALSE) {
   print(str_c("processing variable ", variable, " for location ", location))
+  
+  map = cleanMap(map_file, proj4, location)
+  
+  df = readData(epi_file)
+  
   # Classify the breaks
-  domain = calcBreaks(df, variable, numColors)
+  domain = calcBreaks(df, variable, numColors, maxN)
   
   if(!is.na(domain)){
-    break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower)%>% filter(!is.na(midpt))
+    break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower) %>% 
+      filter(!is.na(midpt))
     
     
-    df = df %>% mutate(ids = str_split(location_id, "_")) %>% 
+    df = df %>% 
+      filter(!is.na(.data[[variable]])) %>% 
+      mutate(ids = str_split(location_id, "_")) %>% 
       rowwise() %>% 
-      mutate(GEOID = str_replace(ids[[2]], "US-", ""),
+      mutate(GEOID = str_replace(ids %>% last(), "US-", ""),
              fill = cut(.data[[variable]], domain))
     
     counts = df %>% 
       group_by(date) %>% 
-      filter(!is.na(.data[[variable]])) %>% 
       do(h = calcHist(.data[[variable]], breaks = domain)) %>% 
       unnest(cols = c(h)) %>% 
       mutate(fill = cut(midpt, domain))
     
     counts = counts %>% left_join(break_limits, by = "midpt")
     
-    maps = map %>% left_join(df, by="GEOID")
+    maps = map %>% inner_join(df, by="GEOID")
+    
+    # Create the gifs
+    if(exportGif) {
+      createGif(maps, map, domain, counts, variable, location)
+    }
+    
     if(returnAll) {
       return(list(maps = maps, blank_map = map, breaks = domain, hist = counts))
     } else {
-      return(domain)
+      if(returnJson) {
+        return(toJSON(tibble(!!(paste0(variable, "_breaks")) := list(domain))))
+      }
+      return(tibble(!!(paste0(variable, "_breaks")) := list(domain)))
     }
-    
-    # Create the gifs
-    # createGif(maps)
   }
 }
 
@@ -124,11 +131,22 @@ processVariable = function(map, df, location, variable, numColors, returnAll = F
 
 
 # calcBreaks --------------------------------------------------------------
-calcBreaks = function(df, variable, numColors, style="fisher") {
+calcBreaks = function(df, variable, numColors, maxN = 25000, style="fisher") {
+  # Maximum value to sample to calculate breaks.
+  # Necessary because a classification of 280,000 elements is insanely slow.
+  # from classInt: "default 3000L, the QGIS sampling threshold; over 3000, the observations presented to "fisher" and "jenks" are either a samp_prop= sample or a sample of 3000, whichever is larger"
+  # Doing this manually, since this MAY exclude the min/max values, AND the larger of 10% of 280,000 is REALLY slow (I assume classInt is doing some sort of sampling + replacement), and unclear if there are benefits to getting the precise breaks
+  
+  set.seed(25)
   if(variable %in% colnames(df)) {
-    values = df %>% pull(variable)
-    breaks = classIntervals(values, numColors, style=style)
+    values = df %>% filter(!is.na(.data[[variable]])) %>% pull(variable) 
+    # Manual sampling of the data so things don't blow up too much.
+    # making sure to add the max and min value
+    if(length(values) > maxN) {
+      values = c(min(values), max(values), values[values != max(values) & values != min(values)] %>% sample(maxN))
+    }
     
+    breaks = classIntervals(values, numColors, style=style, warnLargeN = FALSE)
     
     if(str_detect(variable, "_diff")) {
       # Ensure the breaks are centered at 0 if it's a difference
@@ -144,7 +162,7 @@ calcBreaks = function(df, variable, numColors, style="fisher") {
       
       if(padLength < 0) {
         maxVal = max(domain)
-        domain = c(domain, rep(maxVal, -1*padLength) + seq(1, by=1, length.out=-1*padLength))
+        domain = c(domain, rep(maxVal, -1*padLength) + seq(1, by=1, length.out=(-1*padLength)))
       } 
       if(padLength > 0 ) {
         minVal = min(domain)
@@ -156,7 +174,7 @@ calcBreaks = function(df, variable, numColors, style="fisher") {
     
     return(sort(domain)) 
   } else {
-    print(str_c("WARNING: variable ", variable, "is not found. Skipping calculating breaks"))
+    print(str_c("    WARNING: variable ", variable, " is not found. Skipping calculating breaks"))
     return(NA)
   }
 }
@@ -206,81 +224,136 @@ calcHist = function(values, breaks) {
 
 
 # createGif ---------------------------------------------------------------
-createGif = function(maps) {
+createGif = function(maps, blank_map, breaks, hist, variable, location) {
+  fps=2
   
+  # Labels for histogram
+  variableLabels = tibble(confirmed_per_100k = "total cases per 100,000 residents",
+                          confirmed_rolling="7 day average of daily cases", 
+                          confirmed_rolling_per_100k = "7 day average of daily cases per 100,000 residents", 
+                          confirmed_rolling_14days_ago_diff = "average cases vs. 2 weeks ago",
+                          confirmed_rolling_14days_ago_diff_per_100k = "average cases per 100,000 residents vs. 2 weeks ago", 
+                          dead_per_100k = "total deaths per 100,000 residents", 
+                          dead_rolling = "7 day average of daily deaths", 
+                          dead_rolling_per_100k = "7 day average of daily deaths per 100,00 residents", 
+                          dead_rolling_14days_ago_diff = "average deaths vs. 2 weeks ago", 
+                          dead_rolling_14days_ago_diff_per_100k = "average deaths vs. 2 weeks ago")
+  geoLocations = tibble(US_states = "U.S. states", US_metros = "U.S. metropolitan areas", US_counties = "U.S. counties", admin0 = "countries")
+  
+  # Interpolate color palette
+  if(str_detect(variable, "diff")) {
+    colorPalette = colorRampPalette(c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"),
+                                    space="Lab")(length(breaks) - 1)
+  } else {
+    colorPalette = colorRampPalette(c("#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"),
+                                    space="Lab")(length(breaks) - 1)
+  }
+  
+  # Check the histogram and map have the same number of frames
+  num_frames = length(unique(hist$date))
+  if(length(unique(maps$date)) != num_frames) {
+    stop("Mismatch in number of frames between histogram legend and map")
+  }
+  # --- MAP ---  
   # DC screws things up, since it has no polygon; filter out places without geoms
-  p1 =
-    ggplot(maps$maps %>% filter(!st_is_empty(geometry))) +
-    geom_sf(size = 0.2, data = maps$blank_map, fill = NA) +
+  p_map =
+    ggplot(maps %>% filter(!st_is_empty(geometry))) +
+    geom_sf(size = 0.2, data = blank_map, fill = NA) +
     geom_sf(size = 0.2, aes(fill = fill, group=date)) + 
     # scale_fill_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), limits=range(maps$breaks), breaks=maps$breaks[1:11], na.value = "white", show.limits=T, guide="colourbar") +
     scale_fill_manual(values=colorPalette, breaks = levels(maps$fill), na.value = "white", drop=FALSE) +
-    labs(title = "{frame_time}") +
+    labs(title = "{format(frame_time, '%d %B %Y')}") +
     theme_void() +
-    # #   theme(legend.position = "none") +
+    theme(legend.position = "none", plot.title = element_text(size=18, hjust = 0.5)) +
     transition_time(date)
   
-  barWidth = min(maps$hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
-  colorPalette = colorRampPalette(c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"),
-                                  space="Lab")(length(maps$breaks) - 1)
-  p2 =
-    ggplot(maps$hist, aes(xmin=midpt - barWidth, xmax = midpt+ barWidth, ymin=0, ymax=count, fill=fill)) +
-    geom_rect(colour = "#2c3e50", size = 0.2) +
-    scale_fill_manual(values=colorPalette, breaks = levels(maps$hist$fill), na.value = "white", drop=FALSE) +
-    theme_minimal() +
-    geom_rect(aes(ymin = -2.5, ymax=-1, xmin = lower, xmax = upper, fill = fill)) +
-    geom_text(aes(y=-2.5, x=lower, label=round(lower)), nudge_y = -1) +
-    labs(title = "{current_frame}") +
-    ease_aes('sine-in-out') +
-    transition_manual(date)
+  # --- HISTOGRAM LEGEND ---
+  barWidth = min(hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
+  maxVal = hist %>% pull(upper) %>% max()
   
+  p_legend =
+    ggplot(hist)
   
-  a_gif = animate(p1, fps=2, renderer = gifski_renderer(), end_pause = 20, width = 500, height=350)
-  b_gif = animate(p2, fps=2, detail= 2, nframes = length(unique(maps$hist$date)), renderer = gifski_renderer(), end_pause = 20)
-  a_mgif <- image_read(a_gif)
-  b_mgif <- image_read(b_gif)
-  
-  new_gif <- image_append(c(b_mgif[1], c_mgif[1]), stack=T )
-  for(i in 2:100){
-    combined <- image_append(c(b_mgif[i], c_mgif[i]), stack=T)
-    new_gif <- c(new_gif, combined)
+  if(str_detect(variable, "diff")) {
+    nudge = range(hist$midpt) %>% sapply(function(x) abs(x)) %>% min() * 0.05
+    p_legend = p_legend +
+      geom_vline(xintercept = 0, colour = "#aabdd1", size = 0.25, linetype = 2) +
+      geom_text(aes(x = 0, y = pretty(hist$count) %>% last(), label = paste("\u2190","better")), hjust = 1, nudge_x = -1*nudge, data = tibble()) +
+      geom_text(aes(x = 0, y = pretty(hist$count) %>% last(), label =paste("worse", "\u2192")), hjust = 0, nudge_x = nudge, data = tibble())
   }
   
-  # new_gif
-  
-  map_anim2 = animate(p2, fps=2, renderer = gifski_renderer(), end_pause = 20)
-  # image_animate(map_anim2, "test.gif", fps=2)
-  
-  
-  ggplot(mpg, aes(x = displ, y = hwy, colour = hwy)) + 
-    geom_point(size = 3) + 
-    scale_colour_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), 
-                        breaks=seq(-2.5, 50, by = 5), 
-                        limits = c(-5,50),
-                        guide="legend")
-  
-  total = st_drop_geometry(maps$maps) %>% group_by(date) %>% summarise(total = sum(.data[[variable]], na.rm=TRUE))
-  
-  yMax = max(total$total) * 1.1
-  yMin = min(total$total) * 1.1
-  p4 = ggplot(total) + 
-    annotate(geom ="rect", xmin = as.Date("2020-01-21"), xmax=as.Date("2020-07-11"), ymin = 0, ymax=yMax, fill = "#fdae61", alpha = 0.25) + 
-    annotate(geom ="rect", xmin = as.Date("2020-01-21"), xmax=as.Date("2020-07-11"), ymin = 0, ymax=yMin, fill = "#abd9e9", alpha = 0.3) + 
-    annotate(geom="text", x = as.Date("2020-01-21"), y = yMax, label = "WORSE THAN 2 WEEKS BEFORE", colour = "#f46d43", hjust = -0.025, vjust = 1.5) + 
-    annotate(geom="text", x = as.Date("2020-01-21"), y = yMin, label = "BETTER THAN 2 WEEKS BEFORE", colour = "#4575b4", hjust = -0.025, vjust = -0.5) + 
-    geom_hline(yintercept = 0) +  
-    geom_line(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 1) + 
-    geom_point(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 2) + 
-    ggtitle("Change in daily number of U.S. cases compared to two weeks prior") + 
-    scale_y_continuous(label = scales::comma) + 
-    theme_minimal() +
-    theme(text = element_text(size=20), axis.title = element_blank(), title = element_text(size = 16)) +
+  p_legend = p_legend +
+    geom_hline(yintercept = 0, colour = "#2c3e50") + 
+    geom_rect(aes(xmin=midpt - barWidth, xmax = midpt+ barWidth, ymin=0, ymax=count, fill=fill), colour = "#2c3e50", size = 0.2) +
+    geom_rect(aes(ymin = -5, ymax=-2, xmin = lower, xmax = upper, fill = fill)) +
+    geom_text(aes(y=-5, x=lower, label=scales::comma(round(lower), accuracy=1)), nudge_y = -4, check_overlap = TRUE) +
+    geom_text(aes(y=-5, x=maxVal %>% max(), label=scales::comma(round(maxVal), accuracy=1)), nudge_y = -4, check_overlap = TRUE) +
+    scale_fill_manual(values=colorPalette, breaks = levels(hist$fill), na.value = "white", drop=FALSE) +
+    scale_y_continuous(breaks = pretty(hist$count)) +
+    labs(title = paste("Number of", geoLocations[[location]]), subtitle= variableLabels[[variable]])+
+    xlab(variableLabels[[variable]]) +
+    enter_grow() +
+    exit_shrink() +
     ease_aes('sine-in-out') +
-    transition_reveal(date)
-  x = animate(p4, fps=5, nframes = length(unique(maps$hist$date)), renderer = gifski_renderer(), end_pause = 20, width = 700, height = 500)
-  anim_save("US_confirmed_rolling_diff.gif", x)
-  # anim_save("US_dead_rolling_diff.gif", x)
+    transition_time(date) +
+    theme_minimal() + 
+    theme(
+      legend.position = "none",
+      axis.line.x = element_blank(), 
+      axis.text = element_blank(),
+      axis.title.x = element_text(),
+      axis.ticks.x = element_blank(), 
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_line(size = 0.25, colour="#aabdd1"),
+      axis.text.y = element_text(size = 14),
+      axis.title = element_blank())
+  
+  # Create the animation frames  
+  map_gif = animate(p_map, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 500, height=350)
+  legend_gif = animate(p_legend, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 300, height=200)
+  
+  if(length(map_gif) != length(legend_gif)) {
+    error("Mismatch in number of frames between histogram legend and map")
+  }
+  
+  # Combine together 
+  combined_gif <- image_append(c(map_gif[1], legend_gif[1]), stack=FALSE)
+  for(i in 2:num_frames){
+    combined <- image_append(c(map_gif[i], legend_gif[i]), stack=FALSE)
+    combined_gif <- c(combined_gif, combined)
+  }
+  
+  # Export!
+  # Note: .mp4 is ~ 200 KB while .gif is 2-4 MB so going with the smaller file.
+  # image_write_gif(combined_gif, "testergif.gif", delay=1/fps)
+  image_write_video(combined_gif, paste0(OUTPUT_DIR, location, "_", variable, "_", format(Sys.Date(), "%Y-%m-%d"), ".mp4"), framerate=fps)
+  
+  
+  
+  # Line trace of change over time  
+  # total = st_drop_geometry(maps$maps) %>% group_by(date) %>% summarise(total = sum(.data[[variable]], na.rm=TRUE))
+  # yMax = max(total$total) * 1.1
+  # yMin = min(total$total) * 1.1
+  # p4 = ggplot(total) + 
+  #   annotate(geom ="rect", xmin = as.Date("2020-01-21"), xmax=as.Date("2020-07-11"), ymin = 0, ymax=yMax, fill = "#fdae61", alpha = 0.25) + 
+  #   annotate(geom ="rect", xmin = as.Date("2020-01-21"), xmax=as.Date("2020-07-11"), ymin = 0, ymax=yMin, fill = "#abd9e9", alpha = 0.3) + 
+  #   annotate(geom="text", x = as.Date("2020-01-21"), y = yMax, label = "WORSE THAN 2 WEEKS BEFORE", colour = "#f46d43", hjust = -0.025, vjust = 1.5) + 
+  #   annotate(geom="text", x = as.Date("2020-01-21"), y = yMin, label = "BETTER THAN 2 WEEKS BEFORE", colour = "#4575b4", hjust = -0.025, vjust = -0.5) + 
+  #   geom_hline(yintercept = 0) +  
+  #   geom_line(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 1) + 
+  #   geom_point(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 2) + 
+  #   ggtitle("Change in daily number of U.S. cases compared to two weeks prior") + 
+  #   scale_y_continuous(label = scales::comma) + 
+  #   theme_minimal() +
+  #   theme(text = element_text(size=20), axis.title = element_blank(), title = element_text(size = 16)) +
+  #   ease_aes('sine-in-out') +
+  #   transition_reveal(date)
+  # x = animate(p4, fps=5, nframes = num_frames), renderer = gifski_renderer(), end_pause = 20, width = 700, height = 500)
 }
 
 # invoke the function -----------------------------------------------------
-breaks = generateGifs()
+# breaks = generateGifs()
+# Can also be run individually, returning a dataframe or JSON
+breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T, returnAll=F)
