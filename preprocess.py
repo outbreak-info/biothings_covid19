@@ -675,7 +675,7 @@ def compute_stats(item, grp, grouped_sum, iso3, current_date):
         if current_date - timedelta(days = 1) in sorted_group_sum.index and sorted_group_sum[current_date - timedelta(days = 1)] > 0:
             item[api_key+"_pctIncrease"] = (sorted_group_sum[current_date] - sorted_group_sum[current_date - timedelta(days = 1)])/sorted_group_sum[current_date - timedelta(days = 1)]
         if "population" in item and item["population"] > 0:
-            per_capita_keys = [api_key, api_key+"_rolling", api_key+"_rolling_14days_ago", api_key+"_rolling_14days_ago_diff"]
+            per_capita_keys = [api_key, api_key+"_numIncrease", api_key+"_rolling", api_key+"_rolling_14days_ago", api_key+"_rolling_14days_ago_diff"]
             for per_capita_key in per_capita_keys:
                 if per_capita_key not in item:
                     continue
