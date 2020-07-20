@@ -8,6 +8,7 @@ library(sf)
 library(ggplot2)
 library(gganimate)
 library(magick)
+# library(forcats)
 
 
 # constants ---------------------------------------------------------------
@@ -50,11 +51,9 @@ generateGifs = function(numColors = 9, exportGif = TRUE) {
 #     • generates and saves a .gif for each
 processLocation = function(epi_file, map_file, proj4, location, numColors, exportGif = TRUE) {
   # loop over variables
-  if(!is.na(df)) {
-    breaks = lapply(EPI_VARS, function(variable) processVariable(epi_file, map_file, proj4, location, variable, numColors, exportGif))
-    breaks_df = breaks %>% bind_cols() %>% mutate(location = location)
-    return(breaks_df)
-  }
+  breaks = lapply(EPI_VARS, function(variable) processVariable(epi_file, map_file, proj4, location, variable, numColors, exportGif = exportGif))
+  breaks_df = breaks %>% bind_cols() %>% mutate(location = location)
+  return(breaks_df)
 }
 
 readData = function(epi_file) {
@@ -89,7 +88,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
   # Classify the breaks
   domain = calcBreaks(df, variable, numColors, maxN)
   
-  if(!is.na(domain)){
+  if(all(!is.na(domain))) {
     break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower) %>% 
       filter(!is.na(midpt))
     
@@ -131,7 +130,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
 
 
 # calcBreaks --------------------------------------------------------------
-calcBreaks = function(df, variable, numColors, maxN = 25000, style="fisher") {
+calcBreaks = function(df, variable, numColors, maxN, style="fisher") {
   # Maximum value to sample to calculate breaks.
   # Necessary because a classification of 280,000 elements is insanely slow.
   # from classInt: "default 3000L, the QGIS sampling threshold; over 3000, the observations presented to "fisher" and "jenks" are either a samp_prop= sample or a sample of 3000, whichever is larger"
@@ -267,9 +266,34 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
     theme(legend.position = "none", plot.title = element_text(size=18, hjust = 0.5)) +
     transition_time(date)
   
-  # --- HISTOGRAM LEGEND ---
+  # --- HISTOGRAM LEGEND ---s
   barWidth = min(hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
   maxVal = hist %>% pull(upper) %>% max()
+  # 
+  # worstPlaces = st_drop_geometry(df) %>% 
+  #   group_by(date) %>% 
+  #   mutate(rank = row_number(desc(confirmed_rolling))) %>% 
+  #   filter(rank <= 5)
+  # 
+  # ggplot(worstPlaces, aes(x = rank, y = confirmed_rolling, fill = name, group = name)) +
+  # geom_col(width = 0.8, position="identity") + 
+  #   geom_text(aes(label = name, y = 0)) +
+  #   labs(title = "{format(frame_time, '%d %B %Y')}") +
+  #   # scale_y_log10() +
+  #   # scale_x_reverse() +
+  #   coord_flip() + transition_states(date,4,1)
+  # 
+  # ggplot(worstPlaces %>% filter(date =="2020-03-01" || date =="2020-07-01"),
+  #          aes(x = confirmed_rolling, y = rank, group = name, fill=fill)) + 
+  #   enter_grow() +
+  #   exit_shrink() +
+  #   exit_fly(x_loc = 0, y_loc = 0) + enter_fly(x_loc = 0, y_loc = 0) +
+  # ease_aes('cubic-in-out') +
+  #   geom_point(size = 3, shape=21) +
+  #   labs(title = "{format(frame_time, '%d %B %Y')}") +
+  #   scale_fill_manual(values=colorPalette, breaks = levels(hist$fill), na.value = "white", drop=FALSE) +
+  #   theme_minimal() +
+  #   transition_time(date)
   
   p_legend =
     ggplot(hist)
@@ -354,6 +378,7 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
 }
 
 # invoke the function -----------------------------------------------------
-# breaks = generateGifs()
+breaks = generateGifs()
 # Can also be run individually, returning a dataframe or JSON
-breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T, returnAll=F)
+# breaks = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling", 9, returnJson = TRUE, exportGif = T)
+# breaks = processLocation(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], 9, exportGif = T)
