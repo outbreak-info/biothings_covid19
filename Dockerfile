@@ -19,8 +19,7 @@ WORKDIR /code/
 RUN git clone https://github.com/gkarthik/biothings_covid19.git
 
 WORKDIR /code/biothings_covid19/
-RUN pip3 install numpy	# https://github.com/pandas-dev/pandas/issues/25193
+RUN pip3 install numpy==1.15.0 Cython	# https://github.com/pandas-dev/pandas/issues/25193
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-RUN cargo install gifski
 run Rscript install_requirements.R
