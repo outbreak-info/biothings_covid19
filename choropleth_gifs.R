@@ -9,12 +9,23 @@ library(ggplot2)
 library(gganimate)
 library(magick)
 library(data.table)
+library(optparse)
 # library(forcats)
 
+option_list <- list(
+  ## make_option(c("-h", "--help"), action="store_true", default=TRUE, help="Create GIFs from epi data"),
+  make_option(c("-e", "--epi"), action="store", default=NA, type = 'character', help = "Location where the epidemiology csvs are saved. [Default: %default]"),
+  make_option(c("-o", "--out"), action="store", default = "./", type = 'character', help = "Location where the GIFs are saved. [Default: %default]")
+)
+opt <- parse_args(OptionParser(option_list=option_list))
+
+if(is.na(opt$epi)){
+    stop("Path to directory with epidemiology csvs must be provided. See usage (--help)")
+}
 
 # constants ---------------------------------------------------------------
-INPUT_DIR = "Documents/2019-nCoV/data/epi/" # location where the Epidemiology .csvs are saved
-OUTPUT_DIR = "Documents/2019-nCoV/data/epi/" # location where the .gifs are saved
+INPUT_DIR = opt$epi
+OUTPUT_DIR = opt$out
 
 # define variables to loop over
 EPI_VARS = c("confirmed_per_100k", "confirmed_rolling", "confirmed_rolling_per_100k", "confirmed_rolling_14days_ago_diff", "confirmed_rolling_14days_ago_diff_per_100k", "dead_per_100k", "dead_rolling", "dead_rolling_per_100k", "dead_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff_per_100k")
