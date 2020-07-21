@@ -4,7 +4,7 @@ RUN apk upgrade --update && \
     apk add --no-cache --virtual .build-deps $BUILD_DEPS && \
     apk add --no-cache --virtual .persistent-deps $PERSISTENT_DEPS && \
     apk add --update --no-cache R R-dev && \
-    apk add --update --no-cache gcc pkgconfig && \
+    apk add --update --no-cache gcc g++ pkgconfig && \
     apk add --update --no-cache python3 python3-dev freetype-dev libpng musl-dev lapack-dev &&\
     apk add --update --no-cache gdal gdal-dev proj && \
     apk add --update --no-cache imagemagick git && \
