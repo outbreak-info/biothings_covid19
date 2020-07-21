@@ -278,7 +278,7 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   # --- MAP ---  
   # DC screws things up, since it has no polygon; filter out places without geoms
   p_map =
-    ggplot(maps) +
+    ggplot(maps %>% filter(!st_is_empty(geometry))) +
     geom_sf(size = 0.1, data = blank_map, fill = NA) +
     geom_sf(size = 0.1, aes(fill = fill, group=date)) + 
     # scale_fill_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), limits=range(maps$breaks), breaks=maps$breaks[1:11], na.value = "white", show.limits=T, guide="colourbar") +
@@ -400,9 +400,9 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
 }
 
 # invoke the function -----------------------------------------------------
-# breaks = generateGifs()
+breaks = generateGifs()
 # Can also be run individually, returning a dataframe or JSON
-microbenchmark(breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T), times = 1)
-# breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = F, exportGif = F, returnAll=T)
+# microbenchmark(breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = F), times = 1)
+# breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = F, returnAll=T)
 # breaks = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
 # breaks = processLocation(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], 9, exportGif = T)
