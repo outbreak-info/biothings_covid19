@@ -8,6 +8,7 @@ library(sf)
 library(ggplot2)
 library(gganimate)
 library(magick)
+library(data.table)
 # library(forcats)
 
 
@@ -92,15 +93,12 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
     break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower) %>% 
       filter(!is.na(midpt))
     
+    # data.table manipulations are faster...
+    dt = df %>% as.data.table()
+    dt = dt[!is.na(eval(as.symbol(variable))),]
+    dt = dt[,fill := cut(eval(as.symbol(variable)), domain)]
     
-    df = df %>% 
-      filter(!is.na(.data[[variable]])) %>% 
-      mutate(ids = str_split(location_id, "_")) %>% 
-      rowwise() %>% 
-      mutate(GEOID = str_replace(ids %>% last(), "US-", ""),
-             fill = cut(.data[[variable]], domain))
-    
-    counts = df %>% 
+    counts = dt %>% 
       group_by(date) %>% 
       do(h = calcHist(.data[[variable]], breaks = domain)) %>% 
       unnest(cols = c(h)) %>% 
@@ -108,7 +106,10 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
     
     counts = counts %>% left_join(break_limits, by = "midpt")
     
-    maps = map %>% inner_join(df, by="GEOID")
+    # geo join data. data.table faster than dplyr...
+    maps = dt[map %>% as.data.table(), on="location_id"]
+    maps = maps[!is.na(date),] # remove the counties w/ no data
+    sf::st_geometry(maps) = "geometry"
     
     # Create the gifs
     if(exportGif) {
@@ -188,29 +189,50 @@ cleanMap = function(map_file, proj4, id) {
   # convert it to Albers equal area
   map = sf::st_transform(map, proj4)
   
-  if(id %in% c("US_states", "US_metro", "US_counties")){
+  if(id %in% c("US_states", "US_metro", "US_counties")) {
     
     # Based on https://github.com/hrbrmstr/rd3albers
     # and https://r-spatial.github.io/sf/articles/sf3.html#affine-transformations
     # extract, then rotate, shrink & move alaska (and reset projection)
     rot = function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
     
-    alaska <- map[map$GEOID == "AK",]
-    AK_ctr = st_centroid(alaska$geometry)
-    AK_scale = 0.5
-    AK = (alaska$geometry - AK_ctr) * rot((-50*pi)/180) * AK_scale + AK_ctr + c(0500000, -5000000)
-    
-    hawaii <- map[map$GEOID == "HI",]
-    HI_ctr = st_centroid(alaska$geometry)
-    HI_scale = 1.75
-    HI = (hawaii$geometry - HI_ctr) * rot((-35*pi)/180) * HI_scale + HI_ctr + c(2.75e6, 3.5e6)
-    
-    puertorico <- map[map$GEOID == "PR",]
-    PR_scale = 2
-    PR_ctr = st_centroid(puertorico$geometry)
-    PR = (puertorico$geometry) * rot((15*pi)/180) * PR_scale + PR_ctr + c(-6.8e6,6e6)
-    
-    map = map %>% mutate(geometry = st_sfc(ifelse(GEOID == "AK", AK[1], ifelse(GEOID == "HI", HI[1], ifelse(GEOID == "PR", PR[1], geometry)))))}
+    if(id == "US_states") {
+      alaska <- map[map$location_id == "USA_US-AK",]
+      AK_ctr = st_centroid(alaska$geometry)
+      AK_scale = 0.5
+      AK = (alaska$geometry - AK_ctr) * rot((-50*pi)/180) * AK_scale + AK_ctr + c(0500000, -5000000)
+      
+      hawaii <- map[map$location_id == "USA_US-HI",]
+      HI_ctr = st_centroid(alaska$geometry)
+      HI_scale = 1.75
+      HI = (hawaii$geometry - HI_ctr) * rot((-35*pi)/180) * HI_scale + HI_ctr + c(2.75e6, 3.5e6)
+      
+      puertorico <- map[map$location_id == "USA_US-PR",]
+      PR_scale = 2
+      PR_ctr = st_centroid(puertorico$geometry)
+      PR = (puertorico$geometry) * rot((15*pi)/180) * PR_scale + PR_ctr + c(-6.8e6,6e6)
+      
+      map = map %>% mutate(geometry = st_sfc(ifelse(location_id == "USA_US-AK", AK[1], ifelse(location_id == "USA_US-HI", HI[1], ifelse(location_id == "USA_US-PR", PR[1], geometry)))))
+    }  
+    if(id == "US_counties") {
+      # alaska <- map[map$STATEFP == "02",]
+      # AK_ctr = st_centroid(alaska$geometry)
+      # AK_scale = 0.5
+      # AK = (alaska$geometry - AK_ctr) * rot((-50*pi)/180) * AK_scale + AK_ctr + c(0500000, -5000000)
+      # 
+      # hawaii <- map[map$location_id == "HI",]
+      # HI_ctr = st_centroid(alaska$geometry)
+      # HI_scale = 1.75
+      # HI = (hawaii$geometry - HI_ctr) * rot((-35*pi)/180) * HI_scale + HI_ctr + c(2.75e6, 3.5e6)
+      # 
+      # puertorico <- map[map$location_id == "PR",]
+      # PR_scale = 2
+      # PR_ctr = st_centroid(puertorico$geometry)
+      # PR = (puertorico$geometry) * rot((15*pi)/180) * PR_scale + PR_ctr + c(-6.8e6,6e6)
+      # 
+      # map = map %>% mutate(geometry = st_sfc(ifelse(STATEFP == "02", AK[1], ifelse(STATEFP == "15", HI[1], ifelse(STATEFP == "72", PR[1], geometry)))))}  
+    }
+  }
   return(map)
 }
 
@@ -256,9 +278,9 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   # --- MAP ---  
   # DC screws things up, since it has no polygon; filter out places without geoms
   p_map =
-    ggplot(maps %>% filter(!st_is_empty(geometry))) +
-    geom_sf(size = 0.2, data = blank_map, fill = NA) +
-    geom_sf(size = 0.2, aes(fill = fill, group=date)) + 
+    ggplot(maps) +
+    geom_sf(size = 0.1, data = blank_map, fill = NA) +
+    geom_sf(size = 0.1, aes(fill = fill, group=date)) + 
     # scale_fill_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), limits=range(maps$breaks), breaks=maps$breaks[1:11], na.value = "white", show.limits=T, guide="colourbar") +
     scale_fill_manual(values=colorPalette, breaks = levels(maps$fill), na.value = "white", drop=FALSE) +
     labs(title = "{format(frame_time, '%d %B %Y')}") +
@@ -378,7 +400,9 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
 }
 
 # invoke the function -----------------------------------------------------
-breaks = generateGifs()
+# breaks = generateGifs()
 # Can also be run individually, returning a dataframe or JSON
-# breaks = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling", 9, returnJson = TRUE, exportGif = T)
+microbenchmark(breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T), times = 1)
+# breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = F, exportGif = F, returnAll=T)
+# breaks = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
 # breaks = processLocation(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], 9, exportGif = T)
