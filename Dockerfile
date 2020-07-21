@@ -8,7 +8,6 @@ RUN apk upgrade --update && \
     apk add --update --no-cache python3 python3-dev freetype-dev libpng musl-dev lapack-dev &&\
     apk add --update --no-cache gdal gdal-dev proj && \
     apk add --update --no-cache imagemagick git && \
-    apk add --update --no-cache rust cargo && \
     apk del .build-deps
 
 RUN ln -sf python3 /usr/bin/python
