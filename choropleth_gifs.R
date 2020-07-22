@@ -1,5 +1,6 @@
 library(readr)
 library(dplyr)
+library(dtplyr)
 library(tidyr)
 library(stringr)
 library(classInt)
@@ -8,7 +9,6 @@ library(sf)
 library(ggplot2)
 library(gganimate)
 library(magick)
-library(data.table)
 library(optparse)
 # library(forcats)
 
@@ -26,6 +26,8 @@ if(is.na(opt$epi)){
 # constants ---------------------------------------------------------------
 INPUT_DIR = opt$epi
 OUTPUT_DIR = opt$out
+# INPUT_DIR = "Documents/2019-nCoV/data/epi/"
+# OUTPUT_DIR = "Documents/2019-nCoV/data/epi/"
 
 # define variables to loop over
 EPI_VARS = c("confirmed_per_100k", "confirmed_rolling", "confirmed_rolling_per_100k", "confirmed_rolling_14days_ago_diff", "confirmed_rolling_14days_ago_diff_per_100k", "dead_per_100k", "dead_rolling", "dead_rolling_per_100k", "dead_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff_per_100k")
@@ -97,29 +99,33 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
   
   df = readData(epi_file)
   
+  # data.table manipulations are faster...
+  dt = lazy_dt(df) %>% 
+    filter(!is.na(.data[[variable]])) 
+  
   # Classify the breaks
-  domain = calcBreaks(df, variable, numColors, maxN)
+  domain = calcBreaks(dt, variable, numColors, maxN)
   
   if(all(!is.na(domain))) {
     break_limits = tibble(midpt = (domain + domain %>% lag())/2, lower = domain %>% lag(), upper =  domain, width = upper - lower) %>% 
       filter(!is.na(midpt))
     
-    # data.table manipulations are faster...
-    dt = df %>% as.data.table()
-    dt = dt[!is.na(eval(as.symbol(variable))),]
-    dt = dt[,fill := cut(eval(as.symbol(variable)), domain)]
+    dt = dt %>% 
+      mutate(fill = cut(.data[[variable]], domain))
     
     counts = dt %>% 
       group_by(date) %>% 
       do(h = calcHist(.data[[variable]], breaks = domain)) %>% 
+      as_tibble() %>% 
       unnest(cols = c(h)) %>% 
-      mutate(fill = cut(midpt, domain))
-    
-    counts = counts %>% left_join(break_limits, by = "midpt")
+      mutate(fill = cut(midpt, domain)) %>%
+        left_join(break_limits, by = "midpt")
     
     # geo join data. data.table faster than dplyr...
-    maps = dt[map %>% as.data.table(), on="location_id"]
-    maps = maps[!is.na(date),] # remove the counties w/ no data
+    maps = dt %>% inner_join(map, by="location_id")  %>% as_tibble()
+    # %>% 
+    #   filter(!is.na(date))
+    # maps = maps[!is.na(date),] # remove the counties w/ no data
     sf::st_geometry(maps) = "geometry"
     
     # Create the gifs
@@ -149,8 +155,8 @@ calcBreaks = function(df, variable, numColors, maxN, style="fisher") {
   # Doing this manually, since this MAY exclude the min/max values, AND the larger of 10% of 280,000 is REALLY slow (I assume classInt is doing some sort of sampling + replacement), and unclear if there are benefits to getting the precise breaks
   
   set.seed(25)
-  if(variable %in% colnames(df)) {
-    values = df %>% filter(!is.na(.data[[variable]])) %>% pull(variable) 
+  if(variable %in% df$vars) {
+    values = df %>% pull(.data[[variable]])
     # Manual sampling of the data so things don't blow up too much.
     # making sure to add the max and min value
     if(length(values) > maxN) {
@@ -196,9 +202,11 @@ calcBreaks = function(df, variable, numColors, maxN, style="fisher") {
 # • Projects to an appropriate projection
 # • For the US, upscales Hawaii/Puerto Rico and downsizes Alaska (sorry, you're just too big) and rotates/translates to a nicer location
 cleanMap = function(map_file, proj4, id) {
-  map = sf::read_sf(map_file)
+  # Make sure to remove empty polygons. DC disappears due to mapshaper smoothing
+  # DC screws things up, since it has no polygon; filter out places without geoms
+  map = sf::read_sf(map_file) %>% filter(!st_is_empty(geometry))
   # convert it to Albers equal area
-  map = sf::st_transform(map, proj4)
+  map = sf::st_transform(map, proj4) 
   
   if(id %in% c("US_states", "US_metro", "US_counties")) {
     
@@ -287,11 +295,10 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
     stop("Mismatch in number of frames between histogram legend and map")
   }
   # --- MAP ---  
-  # DC screws things up, since it has no polygon; filter out places without geoms
   p_map =
-    ggplot(maps %>% filter(!st_is_empty(geometry))) +
-    geom_sf(size = 0.1, data = blank_map, fill = NA) +
+    ggplot(maps) +
     geom_sf(size = 0.1, aes(fill = fill, group=date)) + 
+    geom_sf(size = 0.2, data = blank_map, fill = NA) +
     # scale_fill_stepsn(colours = c("#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"), limits=range(maps$breaks), breaks=maps$breaks[1:11], na.value = "white", show.limits=T, guide="colourbar") +
     scale_fill_manual(values=colorPalette, breaks = levels(maps$fill), na.value = "white", drop=FALSE) +
     labs(title = "{format(frame_time, '%d %B %Y')}") +
@@ -411,9 +418,9 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
 }
 
 # invoke the function -----------------------------------------------------
-breaks = generateGifs()
+breaks = generateGifs(exportGif = FALSE)
 # Can also be run individually, returning a dataframe or JSON
 # microbenchmark(breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = F), times = 1)
-# breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = F, returnAll=T)
-# breaks = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
+breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
+breaks2 = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling", 9, returnAll = TRUE, exportGif = T)
 # breaks = processLocation(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], 9, exportGif = T)
