@@ -339,6 +339,18 @@ with multiprocessing.Pool(processes = nprocess) as pool:
 
 metro_feats = dict(zip(metro_list, metro_feats))
 
+# Normalize us testing data
+def normalize_us_testing_data(d):
+    if "hospitalized" in d:
+        pass
+    elif "hospitalizedCumulative" in d:
+        d['hospitalized'] = d['hospitalizedCumulative']
+    elif "hospitalizedCurrently" in d:
+        d['hospitalized'] = d['hospitalizedCurrently']
+    else:
+        pass
+    return d
+
 # Add testing data
 def get_us_testing_data(admn1_shp):
     testing_api_url = "https://covidtracking.com/api/states/daily"
@@ -364,6 +376,7 @@ def get_us_testing_data(admn1_shp):
                     if k  == "date":
                         current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
                     d[k] = v
+                d = normalize_us_testing_data(d)
                 us_testing[current_date + "_" + feat["properties"]["i_3166_"]] = copy.deepcopy(d)
         else:
             logging.warning("No testing data for US State: {}".format(feat["properties"]["i_3166_"]))
