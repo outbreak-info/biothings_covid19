@@ -343,8 +343,12 @@ metro_feats = dict(zip(metro_list, metro_feats))
 def get_us_testing_data(admn1_shp):
     testing_api_url = "https://covidtracking.com/api/states/daily"
     us_states = [i for i in admn1_shp if i["properties"]["adm0_a3"] == "USA"]
-    resp = requests.get(testing_api_url)
     us_testing = {}
+    try:
+        resp = requests.get(testing_api_url)
+    except requests.exceptions.RequestException as e:
+        print("[ERROR]: {}".format(e))
+        return us_testing
     if resp.status_code != 200:
         print("US testing data could not be obtained from https://covidtracking.com/api/states/daily.")
         return us_testing
