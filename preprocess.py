@@ -483,7 +483,7 @@ check_testing_states = us_states.apply(lambda x: (x["date"].strftime("%Y-%m-%d")
 us_testing_states = us_states.loc[check_testing_states]
 
 # Iterate and add all testing keys
-testing_keys = list(us_testing.values())[0].keys()
+testing_keys = list(us_testing.values())[0].keys() if len(us_testing) > 0 else []
 for k in testing_keys:
     if k in ["date", "hash"]:
         continue
