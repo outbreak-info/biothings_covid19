@@ -20,7 +20,7 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list=option_list))
 
 if(is.na(opt$epi)){
-    stop("Path to directory with epidemiology csvs must be provided. See usage (--help)")
+  stop("Path to directory with epidemiology csvs must be provided. See usage (--help)")
 }
 
 # constants ---------------------------------------------------------------
@@ -119,7 +119,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
       as_tibble() %>% 
       unnest(cols = c(h)) %>% 
       mutate(fill = cut(midpt, domain)) %>%
-        left_join(break_limits, by = "midpt")
+      left_join(break_limits, by = "midpt")
     
     # geo join data. data.table faster than dplyr...
     maps = dt %>% inner_join(map, by="location_id")  %>% as_tibble()
@@ -310,30 +310,73 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   barWidth = min(hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
   maxVal = hist %>% pull(upper) %>% max()
   # 
-  # worstPlaces = st_drop_geometry(df) %>% 
-  #   group_by(date) %>% 
-  #   mutate(rank = row_number(desc(confirmed_rolling))) %>% 
-  #   filter(rank <= 5)
-  # 
-  # ggplot(worstPlaces, aes(x = rank, y = confirmed_rolling, fill = name, group = name)) +
-  # geom_col(width = 0.8, position="identity") + 
-  #   geom_text(aes(label = name, y = 0)) +
-  #   labs(title = "{format(frame_time, '%d %B %Y')}") +
-  #   # scale_y_log10() +
-  #   # scale_x_reverse() +
-  #   coord_flip() + transition_states(date,4,1)
-  # 
-  # ggplot(worstPlaces %>% filter(date =="2020-03-01" || date =="2020-07-01"),
-  #          aes(x = confirmed_rolling, y = rank, group = name, fill=fill)) + 
-  #   enter_grow() +
-  #   exit_shrink() +
-  #   exit_fly(x_loc = 0, y_loc = 0) + enter_fly(x_loc = 0, y_loc = 0) +
-  # ease_aes('cubic-in-out') +
-  #   geom_point(size = 3, shape=21) +
-  #   labs(title = "{format(frame_time, '%d %B %Y')}") +
-  #   scale_fill_manual(values=colorPalette, breaks = levels(hist$fill), na.value = "white", drop=FALSE) +
-  #   theme_minimal() +
-  #   transition_time(date)
+  worstPlaces = st_drop_geometry(maps) %>%
+    group_by(date) %>%
+    mutate(rank = row_number(desc(.data[[variable]])),
+           fill = cut(.data[[variable]], breaks)) %>%
+    filter(rank <= 5)
+  
+  bestPlaces = st_drop_geometry(maps) %>%
+    group_by(date) %>%
+    mutate(rank = row_number(.data[[variable]]),
+           fill = cut(.data[[variable]], breaks)) %>%
+    filter(rank <= 5)
+  
+  wp = ggplot(worstPlaces) +
+    geom_col(aes_string(x = "rank", y = variable, group = "name"), width=0.05, fill="#bababa") +
+    geom_point(aes_string(x = "rank", y = variable, fill = "fill"), size = 2.5, shape=21) +
+    geom_text(aes(x = rank, y = 0, label = name, group = name), size = 3, hjust = 1.15) +
+    theme_minimal() +
+    theme(
+      axis.ticks.y = element_blank(),
+      legend.position = "none",
+      axis.line.x = element_blank(), 
+      axis.ticks.x = element_blank(), 
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.x = element_line(size = 0.25, colour="#aabdd1"),
+      title = element_text(size = 9),
+      axis.text.x = element_text(size = 10),
+      axis.text.y = element_blank(),
+      axis.title = element_blank(),
+      plot.margin = unit(c(15,15,1, 70), 'pt')) +
+    coord_flip(clip='off') +
+    scale_x_reverse() +
+    scale_y_continuous(label=scales::comma, breaks = scales::pretty_breaks(n = 3)) +
+    scale_fill_manual(values=colorPalette, breaks = levels(hist$fill), na.value = "white", drop=FALSE) +
+    labs(title = "Worst locations") +
+    transition_time(date) +
+    ease_aes("linear") + 
+    enter_fly(y_loc = 0)
+  
+  bp = ggplot(bestPlaces) +
+    geom_col(aes_string(x = "rank", y = variable, group = "name"), width=0.05, fill="#bababa") +
+    geom_point(aes_string(x = "rank", y = variable, fill = "fill"), size = 2.5, shape=21) +
+    geom_text(aes(x = rank, y = 0, label = name, group = name), size = 3, hjust = 1.15) +
+    theme_minimal() +
+    theme(
+      axis.ticks.y = element_blank(),
+      legend.position = "none",
+      axis.line.x = element_blank(), 
+      axis.ticks.x = element_blank(), 
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.x = element_line(size = 0.25, colour="#aabdd1"),
+      title = element_text(size = 9),
+      axis.text.x = element_text(size = 10),
+      axis.text.y = element_blank(),
+      axis.title = element_blank(),
+      plot.margin = unit(c(15,15,1, 70), 'pt')) +
+    coord_flip(clip='off') +
+    scale_x_reverse() +
+    scale_y_continuous(label=scales::comma, breaks = scales::pretty_breaks(n = 3)) +
+    scale_fill_manual(values=colorPalette, breaks = levels(hist$fill), na.value = "white", drop=FALSE) +
+    labs(title = "Best locations") +
+    transition_time(date) +
+    ease_aes("linear") + 
+    enter_fly(y_loc = 0)
   
   p_legend =
     ggplot(hist)
@@ -376,18 +419,30 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   
   # Create the animation frames  
   map_gif = animate(p_map, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 500, height=350)
+  wp_gif = animate(wp, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 150, height=125)
+  bp_gif = animate(bp, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 150, height=125)
   legend_gif = animate(p_legend, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 300, height=200)
   
   if(length(map_gif) != length(legend_gif)) {
-    error("Mismatch in number of frames between histogram legend and map")
+    stop("Mismatch in number of frames between histogram legend and map")
+  }
+  
+  if(length(map_gif) != length(wp_gif)) {
+    print("Mismatch in number of frames between worst places and map")
+    print(length(map_gif))
+    print(length(wp_gif))
+    # stop("Mismatch in number of frames between worst places and map")
+  }  
+  if(length(map_gif) != length(bp_gif)) {
+    print("Mismatch in number of frames between best places and map")
+    # stop("Mismatch in number of frames between best places and map")
   }
   
   # Combine together 
-  combined_gif <- image_append(c(map_gif[1], legend_gif[1]), stack=FALSE)
-  for(i in 2:num_frames){
-    combined <- image_append(c(map_gif[i], legend_gif[i]), stack=FALSE)
-    combined_gif <- c(combined_gif, combined)
-  }
+  # First: zip best/worst locations
+  dotplot_gif = combineGifs(wp_gif, bp_gif, num_frames)
+  legend_gif_comb = combineGifs(legend_gif, dotplot_gif, num_frames, TRUE)
+  combined_gif = combineGifs(map_gif, legend_gif_comb, num_frames)
   
   # Export!
   # Note: .mp4 is ~ 200 KB while .gif is 2-4 MB so going with the smaller file.
@@ -417,10 +472,20 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   # x = animate(p4, fps=5, nframes = num_frames), renderer = gifski_renderer(), end_pause = 20, width = 700, height = 500)
 }
 
+combineGifs = function(gif1, gif2, num_frames, stack = FALSE) {
+  combined_gif = image_append(c(gif1[1], gif2[1]), stack = stack)
+  for(i in 2:num_frames) {
+    combined = image_append(c(gif1[i], gif2[i]), stack = stack)
+    combined_gif = c(combined_gif, combined)
+  }
+  
+  return(combined_gif)
+}
+
 # invoke the function -----------------------------------------------------
-breaks = generateGifs(exportGif = FALSE)
+# breaks = generateGifs(exportGif = FALSE)
 # Can also be run individually, returning a dataframe or JSON
 # microbenchmark(breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = F), times = 1)
-breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
+# breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
 breaks2 = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling", 9, returnAll = TRUE, exportGif = T)
 # breaks = processLocation(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], 9, exportGif = T)
