@@ -81,11 +81,13 @@ readData = function(epi_file) {
       return(NA)
     },
     warning=function(cond) {
+      message("File import failed with these warnings: \n")
+      print(cond)
       return(NULL)
     },
     finally={
     }
-  )    
+  )  
   return(out)
 }
 
