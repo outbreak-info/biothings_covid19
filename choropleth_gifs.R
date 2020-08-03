@@ -103,6 +103,11 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
   dt = lazy_dt(df) %>% 
     filter(!is.na(.data[[variable]])) 
   
+  if(location != "admin0") {
+    US_date_threshold = "2020-03-01"
+    dt = dt %>% filter(date >= US_date_threshold) 
+  }
+  
   # Classify the breaks
   domain = calcBreaks(dt, variable, numColors, maxN)
   
@@ -265,7 +270,7 @@ calcHist = function(values, breaks) {
 
 # createGif ---------------------------------------------------------------
 createGif = function(maps, blank_map, breaks, hist, variable, location) {
-  fps=2
+  fps = 4
   
   # Labels for histogram
   variableLabels = tibble(confirmed_per_100k = "total cases per 100,000 residents",
@@ -306,10 +311,38 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
     theme(legend.position = "none", plot.title = element_text(size=18, hjust = 0.5)) +
     transition_time(date)
   
-  # --- HISTOGRAM LEGEND ---s
-  barWidth = min(hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
-  maxVal = hist %>% pull(upper) %>% max()
-  # 
+  # total line trace -----------------------------------------------------
+  total = st_drop_geometry(maps) %>% 
+    group_by(date) %>% 
+    summarise(total = sum(.data[[variable]], na.rm=TRUE))
+  
+  yMax = max(total$total) * 1.1
+  yMin = min(total$total) * 1.1
+  xMin = min(total$date)
+  xMax = max(total$date)
+  
+  p_total = ggplot(total) 
+  
+  if(str_detect(variable, "diff")) {
+    p_total = p_total +
+      annotate(geom ="rect", xmin = xMin, xmax = xMax, ymin = 0, ymax = yMax, fill = "#fdae61", alpha = 0.25) +
+      annotate(geom ="rect", xmin = xMin, xmax = xMax, ymin = 0, ymax = yMin, fill = "#abd9e9", alpha = 0.3) +
+      annotate(geom="text", x = xMin, y = yMax, label = "WORSE THAN 2 WEEKS BEFORE", colour = "#f46d43", hjust = -0.025, vjust = 1.5) +
+      annotate(geom="text", x = xMax, y = yMin, label = "BETTER THAN 2 WEEKS BEFORE", colour = "#4575b4", hjust = -0.025, vjust = -0.5)
+  }
+  
+  p_total = p_total +
+    geom_hline(yintercept = 0) +
+    geom_line(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 1) +
+    geom_point(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 2) +
+    ggtitle(str_c("Combined ", variableLabels[[variable]])) +
+    scale_y_continuous(label = scales::comma) +
+    theme_minimal() +
+    theme(text = element_text(size=20), axis.title = element_blank(), title = element_text(size = 9)) +
+    ease_aes('linear') +
+    transition_reveal(date)
+  
+  # best/worst dot plot -----------------------------------------------------
   worstPlaces = st_drop_geometry(maps) %>%
     group_by(date) %>%
     mutate(rank = row_number(desc(.data[[variable]])),
@@ -378,6 +411,11 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
     ease_aes("linear") + 
     enter_fly(y_loc = 0)
   
+  
+  # --- HISTOGRAM LEGEND ---
+  barWidth = min(hist %>% filter(width > 1) %>% pull(width), na.rm = TRUE) * 0.45
+  maxVal = hist %>% pull(upper) %>% max()
+  
   p_legend =
     ggplot(hist)
   
@@ -393,8 +431,8 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
     geom_hline(yintercept = 0, colour = "#2c3e50") + 
     geom_rect(aes(xmin=midpt - barWidth, xmax = midpt+ barWidth, ymin=0, ymax=count, fill=fill), colour = "#2c3e50", size = 0.2) +
     geom_rect(aes(ymin = -5, ymax=-2, xmin = lower, xmax = upper, fill = fill)) +
-    geom_text(aes(y=-5, x=lower, label=scales::comma(round(lower), accuracy=1)), nudge_y = -4, check_overlap = TRUE) +
-    geom_text(aes(y=-5, x=maxVal %>% max(), label=scales::comma(round(maxVal), accuracy=1)), nudge_y = -4, check_overlap = TRUE) +
+    geom_text(aes(y=-5, x=lower, label=scales::comma(round(lower/10)*10, accuracy=1)), nudge_y = -4, check_overlap = TRUE) +
+    geom_text(aes(y=-5, x=maxVal %>% max(), label=scales::comma(round(maxVal/10)*10, accuracy=1)), nudge_y = -4, check_overlap = TRUE) +
     scale_fill_manual(values=colorPalette, breaks = levels(hist$fill), na.value = "white", drop=FALSE) +
     scale_y_continuous(breaks = pretty(hist$count)) +
     labs(title = paste("Number of", geoLocations[[location]]), subtitle= variableLabels[[variable]])+
@@ -422,6 +460,7 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   wp_gif = animate(wp, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 150, height=125)
   bp_gif = animate(bp, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 150, height=125)
   legend_gif = animate(p_legend, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 300, height=200)
+  total_gif = animate(p_total, fps=fps, nframes = num_frames, renderer = magick_renderer(), width = 500, height=126) # total height must be even
   
   if(length(map_gif) != length(legend_gif)) {
     stop("Mismatch in number of frames between histogram legend and map")
@@ -442,40 +481,31 @@ createGif = function(maps, blank_map, breaks, hist, variable, location) {
   # First: zip best/worst locations
   dotplot_gif = combineGifs(wp_gif, bp_gif, num_frames)
   legend_gif_comb = combineGifs(legend_gif, dotplot_gif, num_frames, TRUE)
-  combined_gif = combineGifs(map_gif, legend_gif_comb, num_frames)
+  combined_gif = combineGifs(legend_gif_comb, map_gif, num_frames)
+  combined_gif = combineGifs(combined_gif, total_gif, num_frames, TRUE)
   
   # Export!
   # Note: .mp4 is ~ 200 KB while .gif is 2-4 MB so going with the smaller file.
   # image_write_gif(combined_gif, "testergif.gif", delay=1/fps)
   image_write_video(combined_gif, paste0(OUTPUT_DIR, location, "_", variable, "_", format(Sys.Date(), "%Y-%m-%d"), ".mp4"), framerate=fps)
   
-  
-  
-  # Line trace of change over time  
-  # total = st_drop_geometry(maps$maps) %>% group_by(date) %>% summarise(total = sum(.data[[variable]], na.rm=TRUE))
-  # yMax = max(total$total) * 1.1
-  # yMin = min(total$total) * 1.1
-  # p4 = ggplot(total) + 
-  #   annotate(geom ="rect", xmin = as.Date("2020-01-21"), xmax=as.Date("2020-07-11"), ymin = 0, ymax=yMax, fill = "#fdae61", alpha = 0.25) + 
-  #   annotate(geom ="rect", xmin = as.Date("2020-01-21"), xmax=as.Date("2020-07-11"), ymin = 0, ymax=yMin, fill = "#abd9e9", alpha = 0.3) + 
-  #   annotate(geom="text", x = as.Date("2020-01-21"), y = yMax, label = "WORSE THAN 2 WEEKS BEFORE", colour = "#f46d43", hjust = -0.025, vjust = 1.5) + 
-  #   annotate(geom="text", x = as.Date("2020-01-21"), y = yMin, label = "BETTER THAN 2 WEEKS BEFORE", colour = "#4575b4", hjust = -0.025, vjust = -0.5) + 
-  #   geom_hline(yintercept = 0) +  
-  #   geom_line(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 1) + 
-  #   geom_point(aes(x = date, y = total, group="USA"), colour = "#2c3e50", size = 2) + 
-  #   ggtitle("Change in daily number of U.S. cases compared to two weeks prior") + 
-  #   scale_y_continuous(label = scales::comma) + 
-  #   theme_minimal() +
-  #   theme(text = element_text(size=20), axis.title = element_blank(), title = element_text(size = 16)) +
-  #   ease_aes('sine-in-out') +
-  #   transition_reveal(date)
-  # x = animate(p4, fps=5, nframes = num_frames), renderer = gifski_renderer(), end_pause = 20, width = 700, height = 500)
 }
 
-combineGifs = function(gif1, gif2, num_frames, stack = FALSE) {
+combineGifs = function(gif1, gif2, num_frames, stack = FALSE, addFooter = FALSE) {
   combined_gif = image_append(c(gif1[1], gif2[1]), stack = stack)
   for(i in 2:num_frames) {
     combined = image_append(c(gif1[i], gif2[i]), stack = stack)
+    
+    if(addFooter) {
+      image_read("https://raw.githubusercontent.com/outbreak-info/outbreak.info/master/web/src/assets/logo.png") %>%
+        image_scale("35") %>% 
+        image_extent("600x35", gravity = "northwest") %>% 
+        image_background("#bababa", flatten = TRUE) %>%
+        # image_border("#ffffff", "17x12") %>%
+        image_annotate("outbreak.info", color = "blue", size = 12, 
+                       location = "+10+2", gravity = "southwest")
+    }
+    
     combined_gif = c(combined_gif, combined)
   }
   
