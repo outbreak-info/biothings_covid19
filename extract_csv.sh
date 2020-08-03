@@ -3,6 +3,8 @@
 gifdata=$(awk -F "=" '/gif_data/ {print $2}' config.ini)
 jsonout=$(awk -F "=" '/out_json_path/ {print $2}' config.ini)
 
+mkdir -p $gifdata
+
 echo "Reading json from ${jsonout}"
 
 jq -r '["date","location_id","iso3","name","admin_level", "confirmed_per_100k", "confirmed_rolling", "confirmed_rolling_per_100k", "confirmed_rolling_14days_ago_diff", "confirmed_rolling_14days_ago_diff_per_100k", "dead_per_100k", "dead_rolling", "dead_rolling_per_100k", "dead_rolling_14days_ago_diff", "dead_rolling_14days_ago_diff_per_100k"], (.[] | select(.admin_level==2 and .country_iso3=="USA" ) | [.date,.location_id,.name,.iso3,.state_iso3,.admin_level,.confirmed_per_100k, .confirmed_rolling, .confirmed_rolling_per_100k, .confirmed_rolling_14days_ago_diff, .confirmed_rolling_14days_ago_diff_per_100k, .dead_per_100k, .dead_rolling, .dead_rolling_per_100k, .dead_rolling_14days_ago_diff, .dead_rolling_14days_ago_diff_per_100k]) | @csv' $jsonout > ${gifdata}test_counties.csv
