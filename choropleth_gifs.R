@@ -9,18 +9,18 @@ library(sf)
 library(ggplot2)
 library(gganimate)
 library(magick)
-library(optparse)
+library(ini)
 # library(forcats)
 
-option_list <- list(
-  ## make_option(c("-h", "--help"), action="store_true", default=TRUE, help="Create GIFs from epi data"),
-  make_option(c("-e", "--epi"), action="store", default=NA, type = 'character', help = "Location where the epidemiology csvs are saved. [Default: %default]"),
-  make_option(c("-o", "--out"), action="store", default = "./", type = 'character', help = "Location where the GIFs are saved. [Default: %default]")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
+## READ config.ini
+config = read.ini("config.ini")
 
-if(is.na(opt$epi)){
-  stop("Path to directory with epidemiology csvs must be provided. See usage (--help)")
+if(is.null(config$`GIF output`$gif_csv_path)){
+    stop("Path to directory with epidemiology csvs must be provided in config.ini. See example.config.ini for an example.")
+}
+
+if(is.null(config$`GIF output`$gif_output)){
+    config$`GIF output`$gif_output = "./"
 }
 
 # constants ---------------------------------------------------------------
