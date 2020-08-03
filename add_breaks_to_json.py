@@ -14,10 +14,15 @@ data_json = {}
 with open(data_json_path) as json_file:
     data_json = json.load(json_file)
 
+print("Read biothings items from {}.".format(data_json_path))
+
 breaks_json = {}
 with open(breaks_json_path) as json_file:
     breaks_json = json.load(json_file)
 
+print("Read breaks json from {}.".format(breaks_json_path))
+
+print("Adding breaks .. ")
 # Add breaks_json based n admin_level
 admin_level_id_map = {
     0: "admin0",
@@ -39,3 +44,5 @@ for rec in data_json:
 # Write to file
 with open(data_json_path, "w") as outfile:
     json.dump(data_json, outfile)
+
+print("JSON with breaks written to {}.".format(data_json_path))
