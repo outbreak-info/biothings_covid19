@@ -177,7 +177,15 @@ calcBreaks = function(df, variable, numColors, maxN, style="fisher") {
     # Manual sampling of the data so things don't blow up too much.
     # making sure to add the max and min value
     if(length(values) > maxN) {
-      values = c(min(values), max(values), values[values != max(values) & values != min(values)] %>% sample(maxN))
+      minVal = min(values)
+      maxVal = max(values)
+      values = values[values != max(values) & values != min(values)] %>% sample(maxN)
+      if(! minVal %in% values) {
+        values = c(values, minVal)
+      }
+      if(! maxVal %in% values) {
+        values = c(values, maxVal)
+      }
     }
     
     breaks = classIntervals(values, numColors, style=style, warnLargeN = FALSE)
