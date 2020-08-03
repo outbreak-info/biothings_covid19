@@ -179,7 +179,7 @@ calcBreaks = function(df, variable, numColors, maxN, style="fisher") {
     if(length(values) > maxN) {
       minVal = min(values)
       maxVal = max(values)
-      values = values[values != max(values) & values != min(values)] %>% sample(maxN)
+      values = values %>% sample(maxN)
       if(! minVal %in% values) {
         values = c(values, minVal)
       }
