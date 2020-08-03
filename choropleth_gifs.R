@@ -535,9 +535,9 @@ combineGifs = function(gif1, gif2, num_frames, stack = FALSE, addFooter = FALSE)
 # invoke the function -----------------------------------------------------
 # (1) Initial call: run the each variable without GIFs
 # Need to loop over each variable/location
-variable = "confirmed_rolling"
-idx = 2
-breaks = processVariable(GEO_CONSTANTS$epi_file[idx], GEO_CONSTANTS$map_file[idx], GEO_CONSTANTS$proj4[idx], GEO_CONSTANTS$id[idx], variable, numColors = 9, returnJson = TRUE, exportGif = FALSE)
+#variable = "confirmed_rolling"
+#idx = 2
+#breaks = processVariable(GEO_CONSTANTS$epi_file[idx], GEO_CONSTANTS$map_file[idx], GEO_CONSTANTS$proj4[idx], GEO_CONSTANTS$id[idx], variable, numColors = 9, returnJson = TRUE, exportGif = FALSE)
 
 # (2) Final call: create GIFs, don't output the .jsons
 # breaks = generateGifs()
