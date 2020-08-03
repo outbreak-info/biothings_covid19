@@ -516,8 +516,6 @@ combineGifs = function(gif1, gif2, num_frames, stack = FALSE, addFooter = FALSE)
 
 # invoke the function -----------------------------------------------------
 # breaks = generateGifs(exportGif = FALSE)
+
 # Can also be run individually, returning a dataframe or JSON
-# microbenchmark(breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = F), times = 1)
 # breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
-breaks2 = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling", 9, returnAll = TRUE, exportGif = T)
-# breaks = processLocation(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], 9, exportGif = T)
