@@ -35,6 +35,36 @@ def get_customized_mapping(cls):
                 }
             }
         },
+        "confirmed_per_100k_breaks": {
+            "type":"float"
+        },
+        "confirmed_rolling_14days_ago_diff_breaks": {
+            "type":"float"
+        },
+        "confirmed_rolling_14days_ago_diff_per_100k_breaks": {
+            "type":"float"
+        },
+        "confirmed_rolling_breaks": {
+            "type":"float"
+        },
+        "confirmed_rolling_per_100k_breaks": {
+            "type":"float"
+        },
+        "dead_per_100k_breaks": {
+            "type":"float"
+        },
+        "dead_rolling_14days_ago_diff_breaks": {
+            "type":"float"
+        },
+        "dead_rolling_14days_ago_diff_per_100k_breaks": {
+            "type":"float"
+        },
+        "dead_rolling_breaks": {
+            "type":"float"
+        },
+        "dead_rolling_per_100k_breaks": {
+            "type":"float"
+        },
         "mostRecent": {
             "type": "boolean"
         },
