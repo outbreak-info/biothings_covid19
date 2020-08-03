@@ -26,4 +26,6 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 RUN Rscript install_requirements.R
 
 # Install jq to extract csv from json
-RUN apt-get install jq
+RUN apt-get install -y jq
+
+COPY docker_config.ini /code/biothings_covid19/config.ini
