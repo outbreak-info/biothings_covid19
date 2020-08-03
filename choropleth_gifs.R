@@ -153,7 +153,7 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
     } else {
       if(returnJson) {
         json_breaks = tibble(!!(paste0(variable, "_breaks")) := list(domain))
-        jsonlite::write_json(json_breaks, str_c(OUTPUT_DIR, "breaks-", variable, "-", Sys.Date(), ".json"))
+        jsonlite::write_json(json_breaks, str_c(OUTPUT_DIR, "breaks-", location, "-", variable, "-", Sys.Date(), ".json"))
         return(json_breaks)
       }
       return(tibble(!!(paste0(variable, "_breaks")) := list(domain)))
