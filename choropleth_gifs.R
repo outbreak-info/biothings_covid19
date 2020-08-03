@@ -24,8 +24,8 @@ if(is.null(config$`GIF output`$gif_output)){
 }
 
 # constants ---------------------------------------------------------------
-INPUT_DIR = opt$epi
-OUTPUT_DIR = opt$out
+INPUT_DIR = config$`GIF output`$gif_csv_path
+OUTPUT_DIR = config$`GIF output`$gif_output
 # INPUT_DIR = "Documents/2019-nCoV/data/epi/"
 # OUTPUT_DIR = "Documents/2019-nCoV/data/epi/"
 
