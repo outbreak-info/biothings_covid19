@@ -45,13 +45,21 @@ GEO_CONSTANTS = tribble(
 
 
 # main function -----------------------------------------------------------
-generateGifs = function(numColors = 9, exportGif = TRUE) {
+generateGifs = function(numColors = 9, exportGif = TRUE, returnJson = FALSE) {
   # loop over locations
   locations = GEO_CONSTANTS %>% 
     rowwise() %>%
     mutate(breaks = list(processLocation(epi_file, map_file, proj4, id, numColors, exportGif)))
   location_df = locations %>% select(id, breaks) %>% unnest(cols = c(breaks))
-  return(toJSON(location_df))
+  
+  if(returnJson) {
+    jsonlite::write_json(location_df, str_c(OUTPUT_DIR, "breaks-", Sys.Date(), ".json"))
+    json_df = toJSON(location_df)
+    return(json_df)
+  } else {
+    return(location_df)  
+  }
+  
 }
 
 
@@ -65,13 +73,13 @@ generateGifs = function(numColors = 9, exportGif = TRUE) {
 #     • generates and saves a .gif for each
 processLocation = function(epi_file, map_file, proj4, location, numColors, exportGif = TRUE) {
   # loop over variables
-  breaks = lapply(EPI_VARS, function(variable) processVariable(epi_file, map_file, proj4, location, variable, numColors, exportGif = exportGif))
+  breaks = lapply(EPI_VARS, function(variable) processVariable(epi_file, map_file, proj4, location, variable, numColors, exportGif = exportGif, returnJson = FALSE))
   breaks_df = breaks %>% bind_cols() %>% mutate(location = location)
   return(breaks_df)
 }
 
 readData = function(epi_file) {
-  out <- tryCatch(
+  out = tryCatch(
     {
       read_csv(str_c(INPUT_DIR, epi_file), col_types = cols(date = col_date(format = "%Y-%m-%d")))
     },
@@ -94,7 +102,7 @@ readData = function(epi_file) {
 
 # processVariable ---------------------------------------------------------
 # Main workhorse to calculate the breaks, histograms, and generate the gifs
-processVariable = function(epi_file, map_file, proj4, location, variable, numColors, maxN = 25000, exportGif = TRUE, returnJson = FALSE, returnAll = FALSE) {
+processVariable = function(epi_file, map_file, proj4, location, variable, numColors, maxN = 25000, exportGif = TRUE, returnJson = TRUE, returnAll = FALSE) {
   print(str_c("processing variable ", variable, " for location ", location))
   
   map = cleanMap(map_file, proj4, location)
@@ -144,7 +152,9 @@ processVariable = function(epi_file, map_file, proj4, location, variable, numCol
       return(list(maps = maps, blank_map = map, breaks = domain, hist = counts))
     } else {
       if(returnJson) {
-        return(toJSON(tibble(!!(paste0(variable, "_breaks")) := list(domain))))
+        json_breaks = tibble(!!(paste0(variable, "_breaks")) := list(domain))
+        jsonlite::write_json(json_breaks, str_c(OUTPUT_DIR, "breaks-", variable, "-", Sys.Date(), ".json"))
+        return(json_breaks)
       }
       return(tibble(!!(paste0(variable, "_breaks")) := list(domain)))
     }
@@ -223,17 +233,17 @@ cleanMap = function(map_file, proj4, id) {
     rot = function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
     
     if(id == "US_states") {
-      alaska <- map[map$location_id == "USA_US-AK",]
+      alaska = map[map$location_id == "USA_US-AK",]
       AK_ctr = st_centroid(alaska$geometry)
       AK_scale = 0.5
       AK = (alaska$geometry - AK_ctr) * rot((-50*pi)/180) * AK_scale + AK_ctr + c(0500000, -5000000)
       
-      hawaii <- map[map$location_id == "USA_US-HI",]
+      hawaii = map[map$location_id == "USA_US-HI",]
       HI_ctr = st_centroid(alaska$geometry)
       HI_scale = 1.75
       HI = (hawaii$geometry - HI_ctr) * rot((-35*pi)/180) * HI_scale + HI_ctr + c(2.75e6, 3.5e6)
       
-      puertorico <- map[map$location_id == "USA_US-PR",]
+      puertorico = map[map$location_id == "USA_US-PR",]
       PR_scale = 2
       PR_ctr = st_centroid(puertorico$geometry)
       PR = (puertorico$geometry) * rot((15*pi)/180) * PR_scale + PR_ctr + c(-6.8e6,6e6)
@@ -515,7 +525,18 @@ combineGifs = function(gif1, gif2, num_frames, stack = FALSE, addFooter = FALSE)
 }
 
 # invoke the function -----------------------------------------------------
-# breaks = generateGifs(exportGif = FALSE)
+# Initial call: run the each variable without GIFs
+# Need to loop over each variable/location
+variable = "confirmed_rolling"
+idx = 2
+breaks = processVariable(GEO_CONSTANTS$epi_file[idx], GEO_CONSTANTS$map_file[idx], GEO_CONSTANTS$proj4[idx], GEO_CONSTANTS$id[idx], variable, numColors = 9, returnJson = TRUE, exportGif = FALSE)
 
+# Final call: create GIFs, don't output the .jsons
+# breaks = generateGifs()
+
+# Alternative possibilities:
 # Can also be run individually, returning a dataframe or JSON
-# breaks = processVariable(GEO_CONSTANTS$epi_file[4], GEO_CONSTANTS$map_file[4], GEO_CONSTANTS$proj4[4], GEO_CONSTANTS$id[4], "confirmed_rolling_14days_ago_diff", 9, returnJson = TRUE, exportGif = T)
+# breaks = processVariable(GEO_CONSTANTS$epi_file[2], GEO_CONSTANTS$map_file[2], GEO_CONSTANTS$proj4[2], GEO_CONSTANTS$id[2], "confirmed_rolling", 9, returnJson = TRUE, exportGif = T)
+
+# Can run the whole break generation in one go and save to .json
+breaks = generateGifs(returnJson = TRUE, exportGif = FALSE)
