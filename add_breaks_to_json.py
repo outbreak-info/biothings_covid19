@@ -33,7 +33,7 @@ admin_level_id_map = {
 for rec in data_json:
     if rec["admin_level"] not in admin_level_id_map.keys():
         continue
-    _breaks = next(i for i in breaks_json if i["id"] == admin_level_id_map[0])
+    _breaks = next(i for i in breaks_json if i["id"] == admin_level_id_map[rec["admin_level"]])
     if _breaks == None:
         continue
     for k,v in _breaks.items():
