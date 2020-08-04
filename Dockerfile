@@ -28,4 +28,15 @@ RUN Rscript install_requirements.R
 # Install jq to extract csv from json
 RUN apt-get install -y jq
 
+# Add docker config
 COPY docker_config.ini /code/biothings_covid19/config.ini
+
+# ImageMagick policy increase disk usage
+COPY policy.xml /etc/ImageMagick-6/policy.xml
+
+RUN apt-get install -y time
+
+CMD time python3 preprocess.py > /logs/$(date +%Y-%m-%d).log 2>&1 && \
+    time ./extract_csv.sh 2>> /logs/$(date +%Y-%m-%d).log && \
+    time Rscript choropleth_gifs.R >> /logs/$(date +%Y-%m-%d).log 2>&1 && \
+    time python3 add_breaks_to_json.py >> /logs/$(date +%Y-%m-%d).log 2>&1
