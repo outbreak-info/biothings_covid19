@@ -35,6 +35,17 @@ def get_customized_mapping(cls):
                 }
             }
         },
+        "geometry": {
+            "properties": {
+                "type": {
+                    "normalizer": "keyword_lowercase_normalizer",
+                    "type": "keyword"
+                },
+                "coordinates": {
+                    "type": "float"
+                },
+            }
+        },
         "confirmed_per_100k_breaks": {
             "type":"float"
         },
