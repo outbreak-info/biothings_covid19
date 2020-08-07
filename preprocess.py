@@ -17,6 +17,7 @@ import configparser
 # Get paths
 config = configparser.ConfigParser()
 config.read("config.ini")
+
 # Shapefiles
 admn0_path = config["shapefiles"]["admn0_path"]
 admn1_path = config["shapefiles"]["admn1_path"]
@@ -38,6 +39,12 @@ out_json_path = config["output"]["out_json_path"]
 
 # Processes
 nprocess = int(config["process"]["nprocess"])
+
+# Simplified geoJSON
+simplified_admn0_path = config["simplified_shapefiles"]["admn0_path"]
+simplified_admn1_path = config["simplified_shapefiles"]["admn1_path"]
+simplified_admn2_path = config["simplified_shapefiles"]["admn2_path"]
+simplified_usa_metro_path = config["simplified_shapefiles"]["usa_metro_path"]
 
 # Read shapefiles
 admn0_shp = fiona.open(admn0_path)
@@ -98,6 +105,19 @@ def get_closest_polygon(coords, shp):
             closest_feat = feat
             min_dist = dist
     return closest_feat
+
+def get_geojson_dict(path):
+    f = open(path)
+    geojson = json.load(f)
+    f.close()
+    geojson_dict = dict([[i["properties"]["location_id"], i["geometry"]] for i in geojson["features"]])
+    return geojson_dict
+
+# Read simplified geoJSON
+admn0_simplified_dict = get_geojson_dict(simplified_admn0_path)
+admn1_simplified_dict = get_geojson_dict(simplified_admn1_path)
+usa_admn2_simplified_dict = get_geojson_dict(simplified_admn2_path)
+usa_metro_simplified_dict = get_geojson_dict(simplified_usa_metro_path)
 
 #######################
 # Parse daily reports #
@@ -707,7 +727,7 @@ format_id = lambda x: x.replace(" ", "_").replace("&", "_")
 items = []
 
 # Countries
-def generate_country_item(ind_grp, grouped_sum, country_sub_national):
+def generate_country_item(ind_grp, grouped_sum, country_sub_national, simplified_geosjon_dict):
     (ind, grp) = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
@@ -727,6 +747,9 @@ def generate_country_item(ind_grp, grouped_sum, country_sub_national):
         "gdp_last_updated":grp["gdp_update_year"].iloc[0],
         "gdp_per_capita":grp["country_gdp"].iloc[0]  # For every date number of admin1 regions in country with reported cases.
     }
+    # Add geometry
+    if item["location_id"] in simplified_geosjon_dict:
+        item["geometry"] = simplified_geosjon_dict[item["location_id"]]
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
@@ -736,14 +759,14 @@ country_sub_national = daily_df.sort_values("date").groupby(["computed_country_i
 grouped_sum = daily_df.groupby(["computed_country_iso3", "date"]).sum()
 
 with multiprocessing.Pool(processes = nprocess) as pool:
-    country_items = pool.starmap(generate_country_item, zip(daily_df.sort_values("date").groupby(["computed_country_iso3", "date"]), repeat(grouped_sum), repeat(country_sub_national)))
+    country_items = pool.starmap(generate_country_item, zip(daily_df.sort_values("date").groupby(["computed_country_iso3", "date"]), repeat(grouped_sum), repeat(country_sub_national), repeat(admn0_simplified_dict)))
     pool.close()
     pool.join()
     items.extend(country_items)
     print("Completed generation of {} admin0 items.".format(len(country_items)))
 
 # States
-def generate_state_item(ind_grp, grouped_sum):
+def generate_state_item(ind_grp, grouped_sum, simplified_geosjon_dict):
     ind,grp = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
@@ -772,6 +795,9 @@ def generate_state_item(ind_grp, grouped_sum):
         pop = grp["computed_state_pop"].iloc[0]
         if not pd.isna(pop) and pop > 0:
             item["population"] = pop
+    # Add geometry
+    if item["location_id"] in simplified_geosjon_dict:
+        item["geometry"] = simplified_geosjon_dict[item["location_id"]]
     # Compute case stats
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
@@ -781,14 +807,14 @@ print("Generating admin1 items ... ")
 grouped_sum = daily_df.groupby(["computed_state_iso3", "date"]).sum()
 
 with multiprocessing.Pool(processes = nprocess) as pool:
-    state_items = pool.starmap(generate_state_item, zip(daily_df.groupby(["computed_state_iso3", "date"]), repeat(grouped_sum)))
+    state_items = pool.starmap(generate_state_item, zip(daily_df.groupby(["computed_state_iso3", "date"]), repeat(grouped_sum), repeat(admn1_simplified_dict)))
     pool.close()
     pool.join()
     items.extend(state_items)
     print("Completed generation of {} admin1 items".format(len(state_items)))
 
 # Counties
-def generate_county_item(ind_grp, grouped_sum):
+def generate_county_item(ind_grp, grouped_sum, simplified_geosjon_dict):
     ind,grp = ind_grp
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
@@ -816,6 +842,9 @@ def generate_county_item(ind_grp, grouped_sum):
         item["population"] = pop
     if not pd.isna(state_pop) and pop > 0:
         item["state_population"] = state_pop
+    # Add geometry
+    if item["location_id"] in simplified_geosjon_dict:
+        item["geometry"] = simplified_geosjon_dict[item["location_id"]]
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
@@ -823,7 +852,7 @@ print("Generating admin2 items ... ")
 grouped_sum = daily_df.groupby(["computed_county_iso3", "date"]).sum()
 
 with multiprocessing.Pool(processes = nprocess) as pool:
-    county_items = pool.starmap(generate_county_item, zip(daily_df.groupby(["computed_county_iso3", "date"]), repeat(grouped_sum)))
+    county_items = pool.starmap(generate_county_item, zip(daily_df.groupby(["computed_county_iso3", "date"]), repeat(grouped_sum), repeat(usa_admn2_simplified_dict)))
     pool.close()
     pool.join()
     items.extend(county_items)
@@ -878,7 +907,7 @@ items.extend(city_items)
 print("Completed generation of {} city items ... ".format(len(city_items)))
 
 # metropolitan areas
-def generate_metro_item(ind_grp, grouped_sum, metro):
+def generate_metro_item(ind_grp, grouped_sum, metro, simplified_geosjon_dict):
     ind,grp = ind_grp
     get_metro_counties = lambda x: metro[metro["CBSA Code"] == x][["County/County Equivalent", "State Name", "fips"]].rename(columns={"County/County Equivalent": "county_name", "State Name": "state_name"}).to_dict("records")
     item = {
@@ -897,13 +926,16 @@ def generate_metro_item(ind_grp, grouped_sum, metro):
     pop = grp["computed_metro_pop"].iloc[0]
     if not pd.isna(pop) and pop > 0:
         item["population"] = pop
+    # Add geometry
+    if item["location_id"] in simplified_geosjon_dict:
+        item["geometry"] = simplified_geosjon_dict[item["location_id"]]
     compute_stats(item, grp, grouped_sum, ind[0], ind[1])
     return item
 
 print("Generating metro items ... ")
 grouped_sum = daily_df.groupby(["computed_metro_cbsa", "date"]).sum()
 with multiprocessing.Pool(processes = nprocess) as pool:
-    metro_items = pool.starmap(generate_metro_item, zip(daily_df.groupby(["computed_metro_cbsa", "date"]), repeat(grouped_sum), repeat(metro)))
+    metro_items = pool.starmap(generate_metro_item, zip(daily_df.groupby(["computed_metro_cbsa", "date"]), repeat(grouped_sum), repeat(metro), repeat(usa_metro_simplified_dict)))
     pool.close()
     pool.join()
     items.extend(metro_items)
