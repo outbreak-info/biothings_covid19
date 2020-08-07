@@ -919,6 +919,7 @@ def generate_metro_item(ind_grp, grouped_sum, metro, simplified_geosjon_dict):
         "location_id" : format_id("METRO_"+grp["computed_metro_cbsa"].iloc[0]),
         "_id": format_id("METRO_"+grp["computed_metro_cbsa"].iloc[0] + "_" + ind[1].strftime("%Y-%m-%d")),
         "admin_level": 1.5,
+        "country_iso3": "USA",
         "country_name": grp["computed_country_name"].iloc[0],
         "sub_parts": get_metro_counties(grp["CBSA_Code"].iloc[0]),
         "wb_region": grp["computed_region_wb"].iloc[0]
