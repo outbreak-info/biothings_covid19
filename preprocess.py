@@ -259,7 +259,7 @@ for fips in nyt_state["fips"].unique():
     if feats == None:
         print("NYT Data doesn't have matching for state with fips {}".format(fips))
         assert False, "FIPS for NYT data missing. Please add iso3 code to fips_iso3 dict on line 205"
-    us_state_feats.append([fips, feats[0]])
+    us_state_feats.append([fips, feats])
 
 us_state_feats = dict(us_state_feats)
 
@@ -429,7 +429,7 @@ cruises_capacity = {
     "Grand Princess": 3533
 }
 
-usa_country_feat = [i for i in admn0_shp if i["properties"]["ADM0_A3"]=="USA"][0]
+usa_country_feat = next(i for i in admn0_shp if i["properties"]["ADM0_A3"]=="USA")
 
 daily_df.columns = daily_df.columns.str.replace(" ", "_").str.replace("/", "")
 
