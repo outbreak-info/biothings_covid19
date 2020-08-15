@@ -255,8 +255,8 @@ usa_admn1_shp = [i for i in admn1_shp if i["properties"]["adm0_a3"] in fips_iso3
 
 us_state_feats = []
 for fips in nyt_state["fips"].unique():
-    feats = [i for i in usa_admn1_shp if (i["properties"]["fips"] != None and i["properties"]["fips"][2:] == fips) or (i["properties"]["adm0_a3"] != "USA" and fips_iso3[i["properties"]["adm0_a3"]] == fips)]
-    if len(feats) == 0:
+    feats = next(i for i in usa_admn1_shp if (i["properties"]["fips"] != None and i["properties"]["fips"][2:] == fips) or (i["properties"]["adm0_a3"] != "USA" and fips_iso3[i["properties"]["adm0_a3"]] == fips))
+    if feats == None:
         print("NYT Data doesn't have matching for state with fips {}".format(fips))
         assert False, "FIPS for NYT data missing. Please add iso3 code to fips_iso3 dict on line 205"
     us_state_feats.append([fips, feats[0]])
@@ -264,11 +264,10 @@ for fips in nyt_state["fips"].unique():
 us_state_feats = dict(us_state_feats)
 
 def get_us_admn2_feat(fips, shp):
-    feats = [i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYF"]) == fips]
-    if len(feats) == 0:
+    feats = next(i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYF"]) == fips)
+    if feats == None:
         print("NYT Data doesn't have matching for county with fips {}".format(fips))
-        return None
-    return feats[0]
+    return feats
 
 county_fips_list = nyt_county["fips"].dropna().unique().tolist()
 with multiprocessing.Pool(processes = nprocess) as pool:
@@ -344,11 +343,10 @@ daily_df = pd.merge(daily_df, metro, on = "fips", how="left")
 
 # Extract metropolitan area features
 def get_metro_feat(cbsa, shp):
-    feats = [i for i in shp if i["properties"]["CBSAFP"] == cbsa]
-    if len(feats) == 0:
+    feats = next(i for i in shp if i["properties"]["CBSAFP"] == cbsa)
+    if feats == None:
         print("Couldn't find metro feature for CBSA code: {}".format(cbsa))
-        return None
-    return feats[0]
+    return feats
 
 metro_feats = []
 metro_list = daily_df["CBSA Code"].dropna().unique()
@@ -532,7 +530,7 @@ print("Populating US counties ... ")
 us_county_df = daily_df[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] == "USA_NYT") & ~(daily_df["Admin2"] == "Unassigned") & ~(pd.isna(daily_df["Admin2"])) & ~(daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
 
 def populate_us_county(x):
-    cetroid = get_centroid(usa_admn2_feats[x["fips"]]["geometry"])
+    centroid = get_centroid(usa_admn2_feats[x["fips"]]["geometry"])
     attr = {
         "computed_county_long": centroid[0],
         "computed_county_lat": centroid[1],
@@ -734,8 +732,6 @@ def generate_country_item(ind_grp, grouped_sum, country_sub_national, simplified
         "name": grp["computed_country_name"].iloc[0],
         "country_name": grp["computed_country_name"].iloc[0],
         "iso3": grp["computed_country_iso3"].iloc[0],
-        "lat": grp["Lat"].iloc[0],
-        "long": grp["Long"].iloc[0],
         "population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : format_id(grp["computed_country_iso3"].iloc[0]),
@@ -774,8 +770,6 @@ def generate_state_item(ind_grp, grouped_sum, simplified_geosjon_dict):
         "country_name": grp["computed_country_name"].iloc[0],
         "iso3": grp["computed_state_iso3"].iloc[0],
         "country_iso3": grp["computed_country_iso3"].iloc[0],
-        "lat": grp["Lat"].iloc[0],
-        "long": grp["Long"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0]),
@@ -824,8 +818,6 @@ def generate_county_item(ind_grp, grouped_sum, simplified_geosjon_dict):
         "country_name": grp["computed_country_name"].iloc[0],
         "state_iso3": grp["computed_state_iso3"].iloc[0],
         "country_iso3": grp["computed_country_iso3"].iloc[0],
-        "lat": grp["Lat"].iloc[0],
-        "long": grp["Long"].iloc[0],
         "country_population": grp["computed_country_pop"].iloc[0],
         "wb_region": grp["computed_region_wb"].iloc[0],
         "location_id" : format_id(grp["computed_country_iso3"].iloc[0] +"_" + grp["computed_state_iso3"].iloc[0] + "_" + grp["computed_county_iso3"].iloc[0]),
