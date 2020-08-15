@@ -255,7 +255,7 @@ usa_admn1_shp = [i for i in admn1_shp if i["properties"]["adm0_a3"] in fips_iso3
 
 us_state_feats = []
 for fips in nyt_state["fips"].unique():
-    feats = next(i for i in usa_admn1_shp if (i["properties"]["fips"] != None and i["properties"]["fips"][2:] == fips) or (i["properties"]["adm0_a3"] != "USA" and fips_iso3[i["properties"]["adm0_a3"]] == fips))
+    feats = next((i for i in usa_admn1_shp if (i["properties"]["fips"] != None and i["properties"]["fips"][2:] == fips) or (i["properties"]["adm0_a3"] != "USA" and fips_iso3[i["properties"]["adm0_a3"]] == fips)), None)
     if feats == None:
         print("NYT Data doesn't have matching for state with fips {}".format(fips))
         assert False, "FIPS for NYT data missing. Please add iso3 code to fips_iso3 dict on line 205"
@@ -264,7 +264,7 @@ for fips in nyt_state["fips"].unique():
 us_state_feats = dict(us_state_feats)
 
 def get_us_admn2_feat(fips, shp):
-    feats = next(i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYF"]) == fips)
+    feats = next((i for i in shp if str(i["properties"]["STATEFP"]) + str(i["properties"]["COUNTYF"]) == fips), None)
     if feats == None:
         print("NYT Data doesn't have matching for county with fips {}".format(fips))
     return feats
@@ -343,7 +343,7 @@ daily_df = pd.merge(daily_df, metro, on = "fips", how="left")
 
 # Extract metropolitan area features
 def get_metro_feat(cbsa, shp):
-    feats = next(i for i in shp if i["properties"]["CBSAFP"] == cbsa)
+    feats = next((i for i in shp if i["properties"]["CBSAFP"] == cbsa), None)
     if feats == None:
         print("Couldn't find metro feature for CBSA code: {}".format(cbsa))
     return feats
