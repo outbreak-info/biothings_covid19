@@ -512,7 +512,7 @@ print("Populating Admin1 regions outside US ... ")
 non_us_states = daily_df.loc[~daily_df["Province_State"].isna() & (daily_df["Country_Region"] != "USA_NYT") & (~daily_df["Admin2"].isin(["New York City", "Kansas City"]))]
 
 def populate_non_us_state(x):
-    cetroid = get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"])
+    centroid = get_centroid(state_feats[(x["Lat"], x["Long"])]["geometry"])
     attr = {
         "computed_state_long": centroid[0],
         "computed_state_lat": centroid[1],
