@@ -1,15 +1,18 @@
 import os
 import json
+import gzip
 import numpy as np
 
 from biothings import config
 logging = config.logger
 
 def load_annotations(data_folder):
-    json_path = os.path.join(data_folder,"biothings_items.json")
+    json_path = os.path.join(data_folder,"biothings_items.json.gz")
     items = []
-    with open(json_path) as f:
-        items = json.load(f)
+    with gzip.open(json_path) as f:
+        json_bytes = f.read()
+        json_str = json_bytes.decode("utf-8")
+        items = json.loads(json_str)
         f.close()
     for item in items:
         for k,v in item.items():
