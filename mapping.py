@@ -23,7 +23,7 @@ def get_customized_mapping(cls):
         },
         "sub_parts": {
             "properties": {
-                "fips": {
+                "location_id": {
                     "normalizer": "keyword_lowercase_normalizer",
                     "type": "keyword"
                 },
