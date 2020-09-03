@@ -27,6 +27,7 @@ usa_metro_path = config["shapefiles"]["usa_metro_path"]
 # Data
 census_regions_path = config["data"]["census_regions_path"]
 gdp_path = config["data"]["gdp_path"]
+us_state_codes_path = config["data"]["us_state_codes_path"]
 
 # Repos
 daily_reports_path = config["repos"]["daily_reports_path"]
@@ -338,7 +339,13 @@ metro = pd.read_csv(census_regions_path, skiprows = 2, dtype = {
     "CBSA Code": str
 })
 metro = metro[~metro["FIPS County Code"].isna()]  # Gets rid of bottom 3 rows in file
+us_state_codes = pd.read_csv(us_state_codes_path, dtype = {
+    "FIPS": str
+})
+metro = pd.merge(metro, us_state_codes, left_on="FIPS State Code", right_on="FIPS", how = "left")
+metro["location_id"] = "USA_"+metro["Code"] + "_" + metro["FIPS State Code"] + metro["FIPS County Code"].apply(lambda x: x.zfill(3))
 metro["fips"] = metro["FIPS State Code"] + metro["FIPS County Code"].apply(lambda x: x.zfill(3))
+
 daily_df = pd.merge(daily_df, metro, on = "fips", how="left")
 
 # Extract metropolitan area features
@@ -901,7 +908,7 @@ print("Completed generation of {} city items ... ".format(len(city_items)))
 # metropolitan areas
 def generate_metro_item(ind_grp, grouped_sum, metro, simplified_geosjon_dict):
     ind,grp = ind_grp
-    get_metro_counties = lambda x: metro[metro["CBSA Code"] == x][["County/County Equivalent", "State Name", "fips"]].rename(columns={"County/County Equivalent": "county_name", "State Name": "state_name"}).to_dict("records")
+    get_metro_counties = lambda x: metro[metro["CBSA Code"] == x][["County/County Equivalent", "State Name", "location_id"]].rename(columns={"County/County Equivalent": "county_name", "State Name": "state_name"}).to_dict("records")
     item = {
         "date": ind[1].strftime("%Y-%m-%d"),
         "name": grp["computed_metro_name"].iloc[0],
