@@ -279,7 +279,7 @@ with multiprocessing.Pool(processes = nprocess) as pool:
 usa_admn2_feats = dict(zip(county_fips_list, usa_admn2_feats))
 
 # Add lat long from extracted features
-# For NYC and KC add admin_level = 1.7 and a new FIPS code called 
+# For NYC and KC add admin_level = 1.7 and a new FIPS code called
 # Drop county level data for non mainland US counties except for New York city and Kansas city
 nyt_county = nyt_county[~nyt_county["fips"].isna() | (nyt_county["county"].isin(["New York City", "Kansas City"]))]
 for ind, row in nyt_county.iterrows():
@@ -389,7 +389,7 @@ def get_us_testing_data(admn1_shp):
                         continue
                     if k in ["lastUpdateEt", "checkTimeEt"] and type(v) != int and "/" in v:
                         v = dt.strptime("2020/"+v, "%Y/%m/%d %H:%M") if len(v.split("/")) == 2 else dt.strptime(v, "%m/%d/%Y %H:%M") # Deals with 1900 being default year for Feb 29th without year
-                        v = v.strftime("2020-%m-%d %H:%M") 
+                        v = v.strftime("2020-%m-%d %H:%M")
                     if k  == "date":
                         current_date = dt.strptime(str(v), "%Y%m%d").strftime("%Y-%m-%d")
                     d[k] = v
@@ -580,7 +580,8 @@ daily_df.loc[nyc_df.index, "computed_city_long"] = nyc_df["Long"]
 metro_feat = metro_feats["35620"]
 daily_df.loc[nyc_df.index, "computed_metro_cbsa"] = metro_feat["properties"]["CBSAFP"]
 daily_df.loc[nyc_df.index, "computed_metro_name"] = metro_feat["properties"]["NAME"]
-daily_df.loc[nyc_df.index, "computed_metro_pop"] = metro_feat["properties"]["POPESTI"]
+# daily_df.loc[nyc_df.index, "computed_metro_pop"] = metro_feat["properties"]["POPESTI"]
+daily_df.loc[nyc_df.index, "computed_metro_pop"] = 8336817 # https://en.wikipedia.org/wiki/Demographics_of_New_York_City
 centroid = get_centroid(metro_feat["geometry"])
 daily_df.loc[nyc_df.index, "computed_metro_long"] = centroid[0]
 daily_df.loc[nyc_df.index, "computed_metro_lat"] = centroid[1]
