@@ -211,7 +211,7 @@ unknown = daily_df[daily_df["Lat"].isna()]
 print("Unknown lat longs for {} rows".format(unknown.shape[0]))
 unknown_confirmed = unknown.sort_values("date", ascending = False).groupby("Province_State").head(1)["Confirmed"].sum()
 print("Unaccounted cases due to missing lat long: {}".format(unknown_confirmed))
-print("\n".join(daily_df[daily_df["Lat"].isna()]["Country_Region"].unique()))
+print("\n".join([str(i) for i in daily_df[daily_df["Lat"].isna()]["Country_Region"].unique())])
 daily_df = daily_df[~daily_df["Lat"].isna()]
 
 # Set lat long to the most frequent used values. To deal with cases like French Polynesia
