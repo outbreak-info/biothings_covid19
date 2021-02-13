@@ -293,7 +293,8 @@ for ind, row in nyt_county.iterrows():
             nyt_county.loc[ind, "Long"] = -94.57857
             continue
         continue
-    nyt_county.loc[ind, "Lat"], nyt_county.loc[ind, "Long"] = get_centroid(usa_admn2_feats[row["fips"]]["geometry"])
+    if row["fips"] in usa_admn2_feats:
+        nyt_county.loc[ind, "Lat"], nyt_county.loc[ind, "Long"] = get_centroid(usa_admn2_feats[row["fips"]]["geometry"])
 
 nyt_county = nyt_county.rename(columns={
     "state": "Province_State",
