@@ -293,9 +293,10 @@ for ind, row in nyt_county.iterrows():
             nyt_county.loc[ind, "Long"] = -94.57857
             continue
         continue
-    if row["fips"] in usa_admn2_feats:
+    if usa_admn2_feats[row["fips"]] is not None:
         nyt_county.loc[ind, "Lat"], nyt_county.loc[ind, "Long"] = get_centroid(usa_admn2_feats[row["fips"]]["geometry"])
 
+nyt_county.dropna(subset=["Lat", "Long"], inplace=True)
 nyt_county = nyt_county.rename(columns={
     "state": "Province_State",
     "county": "Admin2",
