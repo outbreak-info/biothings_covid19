@@ -6,6 +6,7 @@
     "data_url" : [
       "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/biothings_items.json.gz"
     ],
+        "release": "version:get_release",
         "uncompress" : false
     },
     "uploader" : {
