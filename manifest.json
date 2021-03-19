@@ -2,7 +2,7 @@
   "version": "0.1",
   "requires" : ["numpy"],
   "dumper" : {
-    "schedule": "0 0,4,16,19,23 * * *",
+    "schedule": "0 3,13,20,23 * * *",
     "data_url" : [
       "https://storage.googleapis.com/andersen-lab_temp/outbreak_info/biothings_items.json.gz"
     ],
