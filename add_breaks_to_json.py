@@ -45,4 +45,9 @@ for rec in data_json:
 with open(data_json_path, "w") as outfile:
     json.dump(data_json, outfile)
 
+with open(data_json_path + 'l',  "w") as outfile:
+    for entry in data_json:
+        json.dump(entry, outfile)
+        outfile.write('\n')
+
 print("JSON with breaks written to {}.".format(data_json_path))
