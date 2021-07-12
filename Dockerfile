@@ -43,4 +43,4 @@ RUN apt-get install -y time
 CMD time python3 preprocess.py > /logs/$(date +%Y-%m-%d).log 2>&1 && \
     time ./extract_csv.sh 2>> /logs/$(date +%Y-%m-%d).log && \
     time Rscript choropleth_gifs.R >> /logs/$(date +%Y-%m-%d).log 2>&1 && \
-    time python3 add_breaks_to_json.py >> /logs/$(date +%Y-%m-%d).log 2>&1
+    time python3 add_breaks_to_jsonl.py >> /logs/$(date +%Y-%m-%d).log 2>&1

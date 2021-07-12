@@ -955,9 +955,10 @@ with open(out_json_path, "w") as fout:
     json.dump(items, fout)
     fout.close()
 
-with open('data/biothings_items.jsonl', 'w') as fout:
+with open(out_json_path+"l", "w") as fout:
     for entry in items:
         json.dump(entry, fout)
-        fout.write('\n')
+        fout.write("\n")
+    fout.close()
 
 print("Wrote {} items to {}".format(len(items), out_json_path))
