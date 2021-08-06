@@ -46,8 +46,6 @@ with open(json_out_path, "w") as outfile:
             continue
         for k,v in _breaks.items():
             if "breaks" not in k:
-                json.dump(rec, outfile)
-                outfile.write("\n")
                 continue
             rec[k] = v
         json.dump(rec, outfile)
