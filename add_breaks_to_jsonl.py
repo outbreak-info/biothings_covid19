@@ -36,12 +36,18 @@ admin_level_id_map = {
 with open(json_out_path, "w") as outfile:
     for rec in load_json_lines(data_json_path):
         if rec["admin_level"] not in admin_level_id_map.keys():
+            json.dump(rec, outfile)
+            outfile.write("\n")
             continue
         _breaks = next(i for i in breaks_json if i["id"] == admin_level_id_map[rec["admin_level"]])
         if _breaks == None:
+            json.dump(rec, outfile)
+            outfile.write("\n")
             continue
         for k,v in _breaks.items():
             if "breaks" not in k:
+                json.dump(rec, outfile)
+                outfile.write("\n")
                 continue
             rec[k] = v
         json.dump(rec, outfile)
