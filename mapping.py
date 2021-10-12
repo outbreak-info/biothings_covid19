@@ -268,7 +268,13 @@ def get_customized_mapping(cls):
             "type": "keyword"
         },
         "name": {
-            "type": "keyword"
+            "type": "keyword",
+            "fields": {
+                "lower": {
+                    "type": "keyword",
+                    "normalizer": "keyword_lowercase_normalizer"
+                }
+            }
         },
         "country_name": {
             "type": "keyword"
