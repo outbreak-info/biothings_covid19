@@ -10,7 +10,7 @@ idna==2.10
 kiwisolver==1.2.0
 matplotlib==3.0
 munch==2.5.0
-numpy==1.15.0
+numpy==1.22.0
 pandas==0.24
 pyparsing==2.4.7
 python-dateutil==2.8.1
