@@ -13,9 +13,9 @@ def load_annotations(data_folder):
             item = json.loads(line)
             
             for k,v in item.items():
-                if type(v) == np.int64:
+                if type(v) == int:
                     item[k] = int(v)
-                if type(v) == np.float64 or type(v) == np.float:
+                if type(v) == float:
                     item[k] = float(v)
 
             yield item
