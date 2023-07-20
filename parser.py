@@ -7,7 +7,7 @@ from biothings import config
 logging = config.logger
 
 def load_annotations(data_folder):
-    json_path = os.path.join(data_folder,"biothings_items_breaks.jsonl.gz")
+    json_path = os.path.join(data_folder,"new_epi_data.jsonl.gz")
     with gzip.open(json_path) as f:
         for line in f:
             item = json.loads(line)
